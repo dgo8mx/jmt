@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Geoportal - Comunidad Jesus Maria Tosibuena</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+    }
+    
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+    
+    /* Header Superior */
+    #header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 60px;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      z-index: 1000;
+    }
+    
+    #header h1 {
+      font-size: 1.5em;
+      font-weight: 600;
+      margin-right: 30px;
+    }
+    
+    #header .subtitle {
+      font-size: 0.9em;
+      opacity: 0.9;
+    }
+    
+    #status-header {
+      margin-left: auto;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      background: rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    #status-header.success {
+      background: #48bb78;
+    }
+    
+    #status-header.error {
+      background: #f56565;
+    }
+    
+    #status-header.loading {
+      background: #4299e1;
+    }
+    
+    .status-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    /* Panel Lateral Izquierdo */
+    #sidebar {
+      position: fixed;
+      top: 60px;
+      left: 0;
+      width: 350px;
+      height: calc(100vh - 60px);
+      background: white;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    #sidebar-header {
+      padding: 20px;
+      background: #f7fafc;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    #sidebar-header h2 {
+      font-size: 1.2em;
+      color: #2d3748;
+      margin-bottom: 5px;
+    }
+    
+    #sidebar-header p {
+      font-size: 0.85em;
+      color: #718096;
+    }
+    
+    /* Sección de Búsqueda de Rodales */
+    #search-section {
+      padding: 20px;
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    #search-section h3 {
+      font-size: 1em;
+      color: #2d3748;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    #search-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 0.9em;
+      transition: all 0.3s;
+    }
+    
+    #search-input:focus {
+      outline: none;
+      border-color: #4299e1;
+      box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+    }
+    
+    #search-results {
+      margin-top: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      display: none;
+    }
+    
+    .search-result-item {
+      padding: 10px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #f7fafc;
+      transition: background 0.2s;
+    }
+    
+    .search-result-item:hover {
+      background: #edf2f7;
+    }
+    
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+    
+    .search-result-item .rodal-name {
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 0.95em;
+    }
+    
+    .search-result-item .rodal-info {
+      font-size: 0.8em;
+      color: #718096;
+      margin-top: 2px;
+    }
+    
+    /* Lista de Capas */
+    #layers-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    
+    #layers-container h3 {
+      font-size: 1em;
+      color: #2d3748;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .layer-item {
+      padding: 12px;
+      margin-bottom: 8px;
+      background: #f7fafc;
+      border-radius: 6px;
+      border-left: 4px solid #cbd5e0;
+      transition: all 0.3s;
+    }
+    
+    .layer-item:hover {
+      background: #edf2f7;
+      border-left-color: #4299e1;
+    }
+    
+    .layer-item.active {
+      background: #e6f2ff;
+      border-left-color: #3182ce;
+    }
+    
+    .layer-item label {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      font-size: 0.9em;
+      color: #2d3748;
+      font-weight: 500;
+    }
+    
+    .layer-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-right: 10px;
+      cursor: pointer;
+      accent-color: #3182ce;
+    }
+    
+    /* Mapa */
+    #map {
+      position: fixed;
+      top: 60px;
+      left: 350px;
+      width: calc(100% - 350px);
+      height: calc(100vh - 60px);
+      z-index: 1;
+    }
+    
+    /* Popup personalizado */
+    .custom-popup {
+      font-size: 0.9em;
+    }
+    
+    .custom-popup .popup-title {
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+      font-size: 1.1em;
+    }
+    
+    .custom-popup .popup-row {
+      padding: 4px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    
+    .custom-popup .popup-label {
+      font-weight: 600;
+      color: #4a5568;
+    }
+    
+    .custom-popup .popup-value {
+      color: #2d3748;
+      text-align: right;
+    }
+    
+    /* Scrollbar personalizado */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e0;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #a0aec0;
+    }
+    
+    /* Loading spinner */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Leyenda de colores */
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      font-size: 0.85em;
+      z-index: 800;
+      display: none;
+    }
+    
+    .legend.active {
+      display: block;
+    }
+    
+    .legend h4 {
+      margin-bottom: 10px;
+      color: #2d3748;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      margin-right: 8px;
+      border: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Superior -->
+  <div id="header">
+    <h1>🗺️ Comunidad Jesus Maria Tosibuena</h1>
+    <span class="subtitle">Sistema de Información Geográfica para el Programa de Manejo Forestal Maderable</span>
+    <div id="status-header" class="loading">
+      <div class="spinner"></div>
+      <span id="status-text">Inicializando...</span>
+    </div>
+  </div>
+
+  <!-- Panel Lateral Izquierdo -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h2>Capas tematicas</h2>
+      <p>Gestión de capas y búsqueda</p>
+    </div>
+    
+    <!-- Sección de Búsqueda de Rodales -->
+    <div id="search-section">
+      <h3>🔍 Búsqueda de Rodales</h3>
+      <input 
+        type="text" 
+        id="search-input" 
+        placeholder="Buscar rodal por nombre o código..."
+        autocomplete="off"
+      >
+      <div id="search-results"></div>
+    </div>
+    
+    <!-- Lista de Capas -->
+    <div id="layers-container">
+      <h3>📊 Capas Disponibles</h3>
+      <div id="layers-list">
+        <p style="color: #718096; font-size: 0.9em;">Cargando capas...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mapa -->
+  <div id="map"></div>
+  
+  <!-- Leyenda -->
+  <div id="legend" class="legend">
+    <h4>Leyenda</h4>
+    <div id="legend-content"></div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script>
+    // Credenciales
+    const SUPABASE_URL = 'https://axumfewacvfvqljbopwx.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4dW1mZXdhY3ZmdnFsamJvcHd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxMDUwMzcsImV4cCI6MjA4MTY4MTAzN30.WC2DxvVc3j-bA89maeJZ2Ts6YyiUDsSQf3zx93vh_D0';
+    
+    // Inicializar el mapa
+    const map = L.map('map').setView([0, 0], 2);
+    
+    // Añadir capa base de OpenStreetMap
+    const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+    
+    // Capas base adicionales
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri',
+      maxZoom: 19
+    });
+    
+    // Control de capas base
+    const baseMaps = {
+      "Mapa Base": baseLayer,
+      "Satélite": satelliteLayer
+    };
+    
+    L.control.layers(baseMaps).addTo(map);
+    
+    // Almacenar las capas cargadas
+    const layersData = {};
+    const layerGroups = {};
+    let rodalesData = [];
+    
+    // Función para actualizar el estado
+    function updateStatus(message, type = 'loading') {
+      const statusHeader = document.getElementById('status-header');
+      const statusText = document.getElementById('status-text');
+      
+      statusHeader.className = type;
+      
+      if (type === 'loading') {
+        statusText.innerHTML = `<div class="spinner"></div> ${message}`;
+      } else {
+        statusText.textContent = message;
+      }
+    }
+    
+    // Cargar capas disponibles
+    async function cargarCapas() {
+      updateStatus('Buscando capas espaciales...', 'loading');
+      
+      try {
+        // Obtener esquema GraphQL
+        const gql = `{
+          __schema {
+            queryType { fields { name } }
+          }
+        }`;
+        
+        const res = await fetch(`${SUPABASE_URL}/graphql/v1`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          },
+          body: JSON.stringify({ query: gql })
+        });
+        
+        if (!res.ok) throw new Error('Error de conexión');
+        
+        const { data } = await res.json();
+        const tables = data.__schema.queryType.fields
+          .map(f => f.name)
+          .filter(n => n.endsWith('Collection'))
+          .map(n => n.slice(0, -'Collection'.length));
+        
+        // Buscar tablas con columna geom
+        const spatialTables = [];
+        for (const table of tables) {
+          try {
+            const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=geom&limit=1`, {
+              headers: { 
+                'apikey': SUPABASE_KEY, 
+                'Authorization': `Bearer ${SUPABASE_KEY}` 
+              }
+            });
+            if (r.ok) {
+              const test = await r.json();
+              if (test.length === 0 || (test.length > 0 && test[0].geom !== undefined)) {
+                spatialTables.push(table);
+              }
+            }
+          } catch (e) {}
+        }
+        
+        if (spatialTables.length === 0) {
+          updateStatus('No se encontraron capas espaciales', 'error');
+          return;
+        }
+        
+        // Mostrar capas encontradas
+        updateStatus(`${spatialTables.length} capa(s) encontrada(s)`, 'success');
+        
+        const layersList = document.getElementById('layers-list');
+        layersList.innerHTML = '';
+        
+        spatialTables.forEach(table => {
+          const div = document.createElement('div');
+          div.className = 'layer-item';
+          div.id = `layer-${table}`;
+          
+          const isRodalLayer = table.toLowerCase().includes('roda');
+          
+          div.innerHTML = `
+            <label>
+              <input type="checkbox" onchange="toggleLayer('${table}', this.checked)">
+              ${formatLayerName(table)}
+            </label>
+          `;
+          layersList.appendChild(div);
+        });
+        
+      } catch (err) {
+        updateStatus('Error: ' + err.message, 'error');
+      }
+    }
+    
+    // Formatear nombre de capa
+    function formatLayerName(name) {
+      return name
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    // Toggle de capa
+    async function toggleLayer(tableName, show) {
+      const layerDiv = document.getElementById(`layer-${tableName}`);
+      
+      if (show) {
+        layerDiv.classList.add('active');
+        await loadAndDisplayLayer(tableName);
+      } else {
+        layerDiv.classList.remove('active');
+        if (layerGroups[tableName]) {
+          map.removeLayer(layerGroups[tableName]);
+        }
+      }
+    }
+    
+    // Cargar y mostrar capa
+    async function loadAndDisplayLayer(tableName) {
+      updateStatus(`Cargando ${tableName}...`, 'loading');
+      
+      try {
+        // Determinar qué campos seleccionar
+        let selectFields = '*';
+        const isRodalLayer = tableName.toLowerCase().includes('roda');
+        
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?select=${selectFields}`, {
+          headers: { 
+            'apikey': SUPABASE_KEY, 
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (!response.ok) throw new Error('Error al cargar datos');
+        
+        const data = await response.json();
+        
+        if (data.length === 0) {
+          updateStatus(`${tableName} está vacía`, 'success');
+          return;
+        }
+        
+        // Guardar datos de rodales para búsqueda
+        if (isRodalLayer) {
+          rodalesData = data.filter(row => row.rodal);
+        }
+        
+        // Convertir a GeoJSON
+        const geojson = {
+          type: 'FeatureCollection',
+          features: data.map(row => {
+            let geometry;
+            if (row.geom) {
+              if (typeof row.geom === 'object' && row.geom.type) {
+                geometry = row.geom;
+              } else {
+                try {
+                  geometry = typeof row.geom === 'string' ? JSON.parse(row.geom) : row.geom;
+                } catch {
+                  return null;
+                }
+              }
+            }
+            
+            return {
+              type: 'Feature',
+              geometry: geometry,
+              properties: Object.keys(row)
+                .filter(k => k !== 'geom')
+                .reduce((acc, k) => ({ ...acc, [k]: row[k] }), {})
+            };
+          }).filter(f => f !== null)
+        };
+        
+        // Crear capa de Leaflet
+        const layerGroup = L.geoJSON(geojson, {
+          onEachFeature: (feature, layer) => {
+            // Crear popup personalizado
+            const props = feature.properties;
+            let popupContent = '<div class="custom-popup">';
+            
+            if (props.rodal) {
+              popupContent += `<div class="popup-title">📍 Rodal: ${props.rodal}</div>`;
+            } else {
+              popupContent += `<div class="popup-title">📍 ${tableName}</div>`;
+            }
+            
+            Object.entries(props).forEach(([k, v]) => {
+              popupContent += `
+                <div class="popup-row">
+                  <span class="popup-label">${k}:</span>
+                  <span class="popup-value">${v !== null ? v : 'N/A'}</span>
+                </div>
+              `;
+            });
+            
+            popupContent += '</div>';
+            layer.bindPopup(popupContent, { maxWidth: 300 });
+          },
+          pointToLayer: (feature, latlng) => {
+            return L.circleMarker(latlng, {
+              radius: 8,
+              fillColor: isRodalLayer ? '#10b981' : '#3b82f6',
+              color: '#fff',
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.7
+            });
+          },
+          style: (feature) => {
+            return {
+              color: isRodalLayer ? '#10b981' : '#3b82f6',
+              weight: 2,
+              opacity: 0.8,
+              fillOpacity: 0.3
+            };
+          }
+        }).addTo(map);
+        
+        // Guardar referencia
+        layerGroups[tableName] = layerGroup;
+        layersData[tableName] = geojson;
+        
+        // Ajustar vista
+        if (geojson.features.length > 0) {
+          map.fitBounds(layerGroup.getBounds(), { padding: [50, 50] });
+        }
+        
+        updateStatus(`${tableName} cargada (${geojson.features.length} elementos)`, 'success');
+        
+      } catch (err) {
+        updateStatus(`Error en ${tableName}: ${err.message}`, 'error');
+      }
+    }
+    
+    // Búsqueda de rodales
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+    
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      
+      if (query.length === 0) {
+        searchResults.style.display = 'none';
+        searchResults.innerHTML = '';
+        return;
+      }
+      
+      const filtered = rodalesData.filter(rodal => 
+        rodal.rodal && rodal.rodal.toLowerCase().includes(query)
+      );
+      
+      if (filtered.length === 0) {
+        searchResults.innerHTML = '<div style="padding: 10px; color: #718096; font-size: 0.85em;">No se encontraron resultados</div>';
+        searchResults.style.display = 'block';
+        return;
+      }
+      
+      searchResults.innerHTML = filtered.slice(0, 10).map(rodal => `
+        <div class="search-result-item" onclick="zoomToRodal('${rodal.rodal}')">
+          <div class="rodal-name">${rodal.rodal}</div>
+          <div class="rodal-info">
+            ${Object.entries(rodal)
+              .filter(([k, v]) => k !== 'rodal' && k !== 'geom' && v)
+              .slice(0, 2)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(' • ')}
+          </div>
+        </div>
+      `).join('');
+      
+      searchResults.style.display = 'block';
+    });
+    
+    // Zoom a rodal específico
+    function zoomToRodal(rodalName) {
+      // Buscar en todas las capas de rodales
+      Object.entries(layerGroups).forEach(([tableName, layerGroup]) => {
+        if (tableName.toLowerCase().includes('roda')) {
+          layerGroup.eachLayer(layer => {
+            if (layer.feature && layer.feature.properties.rodal === rodalName) {
+              // Hacer zoom
+              if (layer.getBounds) {
+                map.fitBounds(layer.getBounds(), { 
+                  padding: [100, 100],
+                  maxZoom: 16 
+                });
+              } else if (layer.getLatLng) {
+                map.setView(layer.getLatLng(), 16);
+              }
+              
+              // Abrir popup
+              layer.openPopup();
+              
+              // Destacar temporalmente
+              if (layer.setStyle) {
+                const originalStyle = {
+                  color: layer.options.color,
+                  weight: layer.options.weight
+                };
+                
+                layer.setStyle({
+                  color: '#f59e0b',
+                  weight: 4
+                });
+                
+                setTimeout(() => {
+                  layer.setStyle(originalStyle);
+                }, 2000);
+              }
+            }
+          });
+        }
+      });
+      
+      searchResults.style.display = 'none';
+      searchInput.value = '';
+    }
+    
+    // Cargar capas al iniciar
+    window.addEventListener('load', cargarCapas);
+  </script>
+
+</body>
+</html>
