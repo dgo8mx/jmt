@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GeoVisor">
+    <meta name="theme-color" content="#667eea">
+    
+    <!-- Manifest -->
+    <link rel="manifest" id="manifest-placeholder">
+    
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect fill='%23667eea' width='180' height='180'/%3E%3Ctext y='140' font-size='120' text-anchor='middle' x='90' fill='white'%3E🗺️%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" sizes="167x167" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 167 167'%3E%3Crect fill='%23667eea' width='167' height='167'/%3E%3Ctext y='130' font-size='110' text-anchor='middle' x='83.5' fill='white'%3E🗺️%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" sizes="152x152" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 152 152'%3E%3Crect fill='%23667eea' width='152' height='152'/%3E%3Ctext y='120' font-size='100' text-anchor='middle' x='76' fill='white'%3E🗺️%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" sizes="120x120" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect fill='%23667eea' width='120' height='120'/%3E%3Ctext y='95' font-size='80' text-anchor='middle' x='60' fill='white'%3E🗺️%3C/text%3E%3C/svg%3E">
+    
+    <title>GeoVisor Offline</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            color: white;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .install-banner {
+            position: fixed;
+            bottom: 280px;
+            left: 16px;
+            right: 16px;
+            background: #fef3c7;
+            border: 2px solid #fbbf24;
+            border-radius: 12px;
+            padding: 16px;
+            z-index: 2500;
+            display: none;
+            animation: slideUp 0.3s ease;
+        }
+        
+        .install-banner.show {
+            display: block;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .install-text {
+            font-size: 14px;
+            color: #92400e;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        
+        .install-steps {
+            font-size: 12px;
+            color: #78350f;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        
+        .install-btn {
+            width: 100%;
+            padding: 10px;
+            background: #fbbf24;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #78350f;
+            cursor: pointer;
+        }
+        
+        .menu-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.25);
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .menu-btn:active {
+            background: rgba(255,255,255,0.4);
+            transform: scale(0.95);
+        }
+        
+        #map {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1;
+        }
+        
+        .gps-card {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            z-index: 1500;
+            overflow: hidden;
+        }
+        
+        .gps-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .gps-title {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .gps-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+        }
+        
+        .gps-status.active {
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .gps-body {
+            padding: 16px 20px;
+        }
+        
+        .coord-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .coord-row:last-of-type {
+            border-bottom: none;
+            margin-bottom: 12px;
+        }
+        
+        .coord-label {
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .coord-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1e293b;
+            font-family: monospace;
+        }
+        
+        .gps-button {
+            width: 100%;
+            height: 52px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .gps-button:active {
+            transform: scale(0.98);
+        }
+        
+        .gps-button.active {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .fab {
+            position: fixed;
+            bottom: 280px;
+            right: 16px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1400;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .fab:active {
+            transform: scale(0.92);
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 3000;
+            display: none;
+            align-items: flex-end;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            width: 100%;
+            max-height: 85vh;
+            background: white;
+            border-radius: 24px 24px 0 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: slideUpModal 0.3s ease;
+        }
+        
+        @keyframes slideUpModal {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 20px;
+        }
+        
+        .section-header {
+            font-size: 13px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            margin: 20px 0 12px;
+        }
+        
+        .section-header:first-child {
+            margin-top: 0;
+        }
+        
+        .upload-btn {
+            width: 100%;
+            height: 56px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        
+        .upload-btn:active {
+            transform: scale(0.98);
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .layer-card {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .layer-name {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 6px;
+        }
+        
+        .layer-info {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 14px;
+        }
+        
+        .layer-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-small {
+            flex: 1;
+            height: 44px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .btn-toggle {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-toggle.off {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+        
+        .btn-remove {
+            background: #fee2e2;
+            color: #dc2626;
+            flex: 0 0 44px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: #94a3b8;
+        }
+        
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 16px;
+        }
+        
+        .switch {
+            position: relative;
+            width: 51px;
+            height: 31px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #e2e8f0;
+            border-radius: 31px;
+            transition: .3s;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 27px;
+            width: 27px;
+            left: 2px;
+            bottom: 2px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: .3s;
+        }
+        
+        input:checked + .slider {
+            background: #667eea;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        
+        .toast {
+            position: fixed;
+            top: 70px;
+            left: 16px;
+            right: 16px;
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 16px;
+            z-index: 4000;
+            display: none;
+            font-size: 15px;
+        }
+        
+        .toast.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .toast.success { background: rgba(16, 185, 129, 0.95); }
+        .toast.error { background: rgba(239, 68, 68, 0.95); }
+        
+        @keyframes slideDown {
+            from { transform: translateY(-100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 5000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .loading.show {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 56px;
+            height: 56px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <span>🗺️</span>
+            <span>GeoVisor Offline</span>
+        </div>
+        <button class="menu-btn" onclick="openMenu()">☰</button>
+    </div>
+
+    <div class="install-banner" id="installBanner">
+        <div class="install-text">📱 Instala esta app en tu iPhone</div>
+        <div class="install-steps">
+            1. Toca el botón <strong>Compartir</strong> ⬆️<br>
+            2. Selecciona <strong>"Agregar a pantalla de inicio"</strong><br>
+            3. ¡Listo! La app funcionará completamente offline
+        </div>
+        <button class="install-btn" onclick="hideInstallBanner()">Entendido</button>
+    </div>
+
+    <div id="map"></div>
+
+    <button class="fab" onclick="openMenu()">🗂️</button>
+
+    <div class="gps-card">
+        <div class="gps-header">
+            <div class="gps-title">
+                <span>📍</span>
+                <span>GPS Offline</span>
+            </div>
+            <div class="gps-status" id="gpsStatus"></div>
+        </div>
+        <div class="gps-body">
+            <div class="coord-row">
+                <span class="coord-label">Latitud</span>
+                <span class="coord-value" id="lat">--</span>
+            </div>
+            <div class="coord-row">
+                <span class="coord-label">Longitud</span>
+                <span class="coord-value" id="lng">--</span>
+            </div>
+            <div class="coord-row">
+                <span class="coord-label">Precisión</span>
+                <span class="coord-value" id="accuracy">--</span>
+            </div>
+            <div class="coord-row">
+                <span class="coord-label">Altitud</span>
+                <span class="coord-value" id="alt">--</span>
+            </div>
+            <button class="gps-button" id="gpsBtn" onclick="toggleGPS()">
+                <span>▶️</span>
+                <span>Iniciar GPS</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="modal" id="modal" onclick="if(event.target===this) closeModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Capas</div>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="section-header">Cargar MBTiles</div>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    <span>📤</span>
+                    <span>Seleccionar Archivo</span>
+                </button>
+                <input type="file" id="fileInput" accept=".mbtiles" multiple>
+                
+                <div class="section-header">Capas Activas</div>
+                <div id="layersList">
+                    <div class="empty-state">
+                        <div style="font-size: 40px; margin-bottom: 8px;">📭</div>
+                        <div>No hay capas</div>
+                    </div>
+                </div>
+                
+                <div class="section-header">Configuración</div>
+                <div class="settings-row">
+                    <span>Capa Base (OSM)</span>
+                    <label class="switch">
+                        <input type="checkbox" id="osmToggle" onchange="toggleOSM()" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="loading" id="loading"><div class="spinner"></div></div>
+
+    <script>
+        // Create manifest dynamically
+        const manifest = {
+            name: "GeoVisor Offline",
+            short_name: "GeoVisor",
+            description: "Visualizador de MBTiles con GPS - Funciona Offline",
+            start_url: window.location.pathname,
+            display: "standalone",
+            background_color: "#ffffff",
+            theme_color: "#667eea",
+            orientation: "portrait",
+            icons: [
+                {
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect fill='%23667eea' width='192' height='192'/%3E%3Ctext y='150' font-size='130' text-anchor='middle' x='96' fill='white'%3E🗺️%3C/text%3E%3C/svg%3E",
+                    sizes: "192x192",
+                    type: "image/svg+xml"
+                },
+                {
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect fill='%23667eea' width='512' height='512'/%3E%3Ctext y='400' font-size='350' text-anchor='middle' x='256' fill='white'%3E🗺️%3C/text%3E%3C/svg%3E",
+                    sizes: "512x512",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }
+            ]
+        };
+        
+        const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        const manifestURL = URL.createObjectURL(manifestBlob);
+        document.getElementById('manifest-placeholder').href = manifestURL;
+    </script>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.js"></script>
+    
+    <script>
+        console.log('🚀 GeoVisor Offline iniciando...');
+        
+        // Show install banner on iOS Safari (not in standalone mode)
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+        
+        if (isIOS && !isStandalone) {
+            setTimeout(() => {
+                document.getElementById('installBanner').classList.add('show');
+            }, 2000);
+        }
+        
+        function hideInstallBanner() {
+            document.getElementById('installBanner').classList.remove('show');
+        }
+        
+        let map, osmLayer, layers = [], gpsMarker = null, accuracyCircle = null;
+        let watchId = null, isGPSActive = false, layerIdCounter = 0;
+
+        function initMap() {
+            try {
+                console.log('📍 Inicializando mapa...');
+                map = L.map('map', {
+                    center: [24.96489060, -105.80108643],
+                    zoom: 10,
+                    zoomControl: true,
+                    attributionControl: false
+                });
+
+                osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    opacity: 0.7
+                }).addTo(map);
+                
+                console.log('✅ Mapa inicializado');
+                showToast('Mapa listo - Funciona offline', 'success');
+            } catch (error) {
+                console.error('❌ Error:', error);
+                showToast('Error al inicializar', 'error');
+            }
+        }
+
+        function openMenu() {
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function setLoading(show) {
+            document.getElementById('loading').className = show ? 'loading show' : 'loading';
+        }
+
+        function toggleOSM() {
+            if (map.hasLayer(osmLayer)) {
+                map.removeLayer(osmLayer);
+            } else {
+                osmLayer.addTo(map);
+            }
+        }
+
+        const config = {
+            locateFile: filename => `https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/${filename}`
+        };
+
+        const MBTilesLayer = L.GridLayer.extend({
+            initialize: function(database, name, options) {
+                L.GridLayer.prototype.initialize.call(this, options);
+                this.db = database;
+                this.layerName = name;
+            },
+
+            createTile: function(coords, done) {
+                const tile = document.createElement('img');
+                const tmsY = (1 << coords.z) - coords.y - 1;
+                
+                try {
+                    const result = this.db.exec(
+                        `SELECT tile_data FROM tiles WHERE zoom_level = ${coords.z} AND tile_column = ${coords.x} AND tile_row = ${tmsY}`
+                    );
+                    
+                    if (result.length > 0 && result[0].values.length > 0) {
+                        const tileData = result[0].values[0][0];
+                        const blob = new Blob([tileData], { type: 'image/jpeg' });
+                        const url = URL.createObjectURL(blob);
+                        
+                        tile.onload = () => {
+                            URL.revokeObjectURL(url);
+                            done(null, tile);
+                        };
+                        
+                        tile.onerror = () => {
+                            URL.revokeObjectURL(url);
+                            done(null, tile);
+                        };
+                        
+                        tile.src = url;
+                    } else {
+                        done(null, tile);
+                    }
+                } catch (e) {
+                    done(null, tile);
+                }
+                
+                return tile;
+            }
+        });
+
+        async function loadMBTiles(file) {
+            console.log('📂 Cargando:', file.name);
+            setLoading(true);
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                const SQL = await initSqlJs(config);
+                const db = new SQL.Database(uint8Array);
+
+                const metadataStmt = db.prepare('SELECT name, value FROM metadata');
+                const metadata = {};
+                
+                while (metadataStmt.step()) {
+                    const row = metadataStmt.getAsObject();
+                    metadata[row.name] = row.value;
+                }
+                metadataStmt.free();
+
+                const countStmt = db.prepare('SELECT COUNT(*) as count FROM tiles');
+                countStmt.step();
+                const tileCount = countStmt.getAsObject().count;
+                countStmt.free();
+
+                const minZoom = parseInt(metadata.minzoom) || 0;
+                const maxZoom = parseInt(metadata.maxzoom) || 18;
+                
+                const mbtilesLayer = new MBTilesLayer(db, metadata.name || file.name, {
+                    minZoom: Math.max(0, minZoom - 2),
+                    maxZoom: maxZoom + 2,
+                    minNativeZoom: minZoom,
+                    maxNativeZoom: maxZoom,
+                    tileSize: 256,
+                    opacity: 1
+                });
+
+                mbtilesLayer.addTo(map);
+
+                const layerId = ++layerIdCounter;
+                layers.push({
+                    id: layerId,
+                    name: metadata.name || file.name,
+                    layer: mbtilesLayer,
+                    db: db,
+                    metadata: metadata,
+                    tileCount: tileCount,
+                    visible: true
+                });
+
+                if (metadata.bounds) {
+                    const bounds = metadata.bounds.split(',').map(Number);
+                    const sw = L.latLng(bounds[1], bounds[0]);
+                    const ne = L.latLng(bounds[3], bounds[2]);
+                    const leafletBounds = L.latLngBounds(sw, ne);
+                    map.setView(leafletBounds.getCenter(), maxZoom);
+                }
+
+                updateLayersList();
+                showToast(`✓ ${file.name} cargado`, 'success');
+                
+                setTimeout(() => {
+                    map.invalidateSize();
+                    mbtilesLayer.redraw();
+                }, 200);
+                
+            } catch (error) {
+                console.error('❌', error);
+                showToast('Error: ' + error.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function updateLayersList() {
+            const list = document.getElementById('layersList');
+            
+            if (layers.length === 0) {
+                list.innerHTML = '<div class="empty-state"><div style="font-size:40px;margin-bottom:8px">📭</div><div>No hay capas</div></div>';
+                return;
+            }
+
+            list.innerHTML = layers.map(l => `
+                <div class="layer-card">
+                    <div class="layer-name">${l.name}</div>
+                    <div class="layer-info">${l.tileCount} tiles • Z${l.metadata.minzoom}-${l.metadata.maxzoom}</div>
+                    <div class="layer-actions">
+                        <button class="btn-small btn-toggle ${l.visible ? '' : 'off'}" onclick="toggleLayer(${l.id})">
+                            ${l.visible ? '👁️ Visible' : '🚫 Oculto'}
+                        </button>
+                        <button class="btn-small btn-remove" onclick="removeLayer(${l.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleLayer(layerId) {
+            const layerObj = layers.find(l => l.id === layerId);
+            if (!layerObj) return;
+
+            if (layerObj.visible) {
+                map.removeLayer(layerObj.layer);
+                layerObj.visible = false;
+            } else {
+                layerObj.layer.addTo(map);
+                layerObj.visible = true;
+            }
+            updateLayersList();
+        }
+
+        function removeLayer(layerId) {
+            const index = layers.findIndex(l => l.id === layerId);
+            if (index === -1) return;
+
+            const layerObj = layers[index];
+            map.removeLayer(layerObj.layer);
+            layerObj.db.close();
+            layers.splice(index, 1);
+            updateLayersList();
+            showToast('Capa eliminada', 'info');
+        }
+
+        function toggleGPS() {
+            if (!navigator.geolocation) {
+                showToast('GPS no disponible', 'error');
+                return;
+            }
+            isGPSActive ? stopGPS() : startGPS();
+        }
+
+        function startGPS() {
+            watchId = navigator.geolocation.watchPosition(
+                updateGPSLocation,
+                handleGPSError,
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+            );
+            
+            isGPSActive = true;
+            document.getElementById('gpsStatus').classList.add('active');
+            const btn = document.getElementById('gpsBtn');
+            btn.className = 'gps-button active';
+            btn.innerHTML = '<span>⏸️</span><span>Detener GPS</span>';
+            showToast('GPS activado', 'success');
+        }
+
+        function stopGPS() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            if (gpsMarker) {
+                map.removeLayer(gpsMarker);
+                gpsMarker = null;
+            }
+            
+            if (accuracyCircle) {
+                map.removeLayer(accuracyCircle);
+                accuracyCircle = null;
+            }
+            
+            document.getElementById('lat').textContent = '--';
+            document.getElementById('lng').textContent = '--';
+            document.getElementById('accuracy').textContent = '--';
+            document.getElementById('alt').textContent = '--';
+            document.getElementById('gpsStatus').classList.remove('active');
+            
+            const btn = document.getElementById('gpsBtn');
+            btn.className = 'gps-button';
+            btn.innerHTML = '<span>▶️</span><span>Iniciar GPS</span>';
+            
+            isGPSActive = false;
+            showToast('GPS desactivado', 'info');
+        }
+
+        function updateGPSLocation(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const alt = position.coords.altitude;
+            const accuracy = position.coords.accuracy;
+
+            document.getElementById('lat').textContent = lat.toFixed(6);
+            document.getElementById('lng').textContent = lng.toFixed(6);
+            document.getElementById('accuracy').textContent = `±${accuracy.toFixed(0)}m`;
+            document.getElementById('alt').textContent = alt ? `${alt.toFixed(0)}m` : 'N/A';
+
+            if (!gpsMarker) {
+                const icon = L.divIcon({
+                    className: 'gps-marker',
+                    html: '<div style="background:#667eea;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 12px rgba(102,126,234,0.6)"></div>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                });
+                
+                gpsMarker = L.marker([lat, lng], { icon: icon }).addTo(map);
+                
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy,
+                    fillColor: '#667eea',
+                    fillOpacity: 0.15,
+                    color: '#667eea',
+                    weight: 2,
+                    opacity: 0.5
+                }).addTo(map);
+
+                map.setView([lat, lng], 17);
+            } else {
+                gpsMarker.setLatLng([lat, lng]);
+                accuracyCircle.setLatLng([lat, lng]);
+                accuracyCircle.setRadius(accuracy);
+            }
+        }
+
+        function handleGPSError(error) {
+            console.error('GPS Error:', error);
+            let message = 'Error GPS: ';
+            switch(error.code) {
+                case error.PERMISSION_DENIED: message += 'Permiso denegado'; break;
+                case error.POSITION_UNAVAILABLE: message += 'No disponible'; break;
+                case error.TIMEOUT: message += 'Timeout'; break;
+                default: message += 'Desconocido';
+            }
+            showToast(message, 'error');
+        }
+
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const files = e.target.files;
+            for (let i = 0; i < files.length; i++) {
+                await loadMBTiles(files[i]);
+            }
+            e.target.value = '';
+            closeModal();
+        });
+
+        window.addEventListener('load', initMap);
+    </script>
+</body>
+</html>
