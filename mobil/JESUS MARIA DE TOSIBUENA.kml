@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>JESUS MARIA DE TOSIBUENA.kml</name>
+	<Schema name="CapaNucleoAgrario" id="nucleoagrario_id">
+		<SimpleField type="int" name="IdNucleoAgrario"></SimpleField>
+		<SimpleField type="string" name="NombreNucleoAgrario"></SimpleField>
+		<SimpleField type="string" name="TipoNucleoAgrario"></SimpleField>
+		<SimpleField type="int" name="IdMunicipio"></SimpleField>
+		<SimpleField type="string" name="NombreMunicipio"></SimpleField>
+		<SimpleField type="int" name="IdEntidadFederativa"></SimpleField>
+		<SimpleField type="string" name="NombreEntidadFederativa"></SimpleField>
+	</Schema>
+	<StyleMap id="estiloMapa">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#normalState</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#highlightState</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Style id="highlightState">
+		<BalloonStyle>
+			<text><![CDATA[<table cellpadding="2" cellspacing="2" style="border:0px solid #0C6304" width="400px">
+<tr><td align="center" colspan="2"><img src="https://sig.ran.gob.mx/img/logos/ran-sedatu-logo.jpg" width="260" height="35"></td></tr>
+<tr><td align="center" colspan="2"><font size="2" face="verdana" color="#696969">Registro Agrario Nacional</font></td></tr>
+<tr><td align="center" colspan="2"><b><font size="2" face="verdana" color="#2B422A">Núcleos Agrarios</font></b></td></tr>
+</table>
+<table cellpadding="2" cellspacing="2" style="border:1px solid #0C6304" width="400px">
+<tr><td  width="150px" align="right"><font size="2" face="verdana" color="#000000">IdNucleoAgrario : </font></td><td><font size="2" face="verdana" color="#555555">$[CapaNucleoAgrario/IdNucleoAgrario]</font></td></tr>
+<tr><td align="right"><font size="2" face="verdana" color="#000000">NombreNucleoAgrario : </font></td><td><font size="2" face="verdana" color="#555555">$[CapaNucleoAgrario/NombreNucleoAgrario]</td></tr>
+<tr><td align="right"><font size="2" face="verdana" color="#000000">TipoNucleoAgrario : </font></td><td><font size="2" face="verdana" color="#555555">$[CapaNucleoAgrario/TipoNucleoAgrario]</td></tr>
+<tr><td align="right"><font size="2" face="verdana" color="#000000">IdMunicipio : </font></td><td><font size="2" face="verdana" color="#555555">$[CapaNucleoAgrario/IdMunicipio]</td></tr>
+<tr><td align="right"><font size="2" face="verdana" color="#000000">NombreMunicipio : </font></td><td><font size="2" face="verdana" color="#555555">$[CapaNucleoAgrario/NombreMunicipio]</td></tr>
+<tr><td align="right"><font size="2" face="verdana" color="#000000">IdEntidadFederativa : </font></td><td><font size="2" face="verdana" color="#555555">$[CapaNucleoAgrario/IdEntidadFederativa]</td></tr>
+<tr><td align="right"><font size="2" face="verdana" color="#000000">NombreEntidadFederativa : </font></td><td><font size="2" face="verdana" color="#555555">$[CapaNucleoAgrario/NombreEntidadFederativa]</td></tr>
+</table>
+<table cellpadding="2" cellspacing="2" style="border:0px solid #0C6304" width="400px">
+<tr><td align="center"><font size="2" face="verdana" color="#696969">Sistema de Información Geoespacial</font></b></td></tr>
+</table>]]></text>
+		</BalloonStyle>
+		<LineStyle>
+			<color>ff009aff</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>cc4eabe7</color>
+		</PolyStyle>
+	</Style>
+	<Style id="normalState">
+		<IconStyle>
+			<scale>1.1</scale>
+		</IconStyle>
+		<LabelStyle>
+			<scale>1.1</scale>
+		</LabelStyle>
+		<LineStyle>
+			<color>ff4eabe7</color>
+		</LineStyle>
+		<PolyStyle>
+			<color>aa4eabe7</color>
+		</PolyStyle>
+	</Style>
+	<Placemark>
+		<name>JESUS MARIA DE TOSIBUENA</name>
+		<styleUrl>#estiloMapa</styleUrl>
+		<ExtendedData>
+			<SchemaData schemaUrl="#nucleoagrario_id">
+				<SimpleData name="IdNucleoAgrario">147</SimpleData>
+				<SimpleData name="NombreNucleoAgrario">JESUS MARIA DE TOSIBUENA</SimpleData>
+				<SimpleData name="TipoNucleoAgrario">COMUNIDAD</SimpleData>
+				<SimpleData name="IdMunicipio">17</SimpleData>
+				<SimpleData name="NombreMunicipio">SINALOA</SimpleData>
+				<SimpleData name="IdEntidadFederativa">25</SimpleData>
+				<SimpleData name="NombreEntidadFederativa">SINALOA</SimpleData>
+			</SchemaData>
+		</ExtendedData>
+		<MultiGeometry>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							-108.0107382801958,26.43454929819947,0 -108.0129685196564,26.43695367752644,0 -108.0129713748846,26.43698748823392,0 -108.0143416034003,26.45327658331204,0 -108.0263188981412,26.44429046619603,0 -108.0263678023609,26.44425378062805,0 -108.0360179763576,26.43701194104941,0 -108.054374724998,26.40576121736153,0 -108.0358600333265,26.31458678008403,0 -108.0272078249871,26.28833768528582,0 -108.0299203021946,26.31605703489089,0 -107.9939254095674,26.30755628966029,0 -107.9874979723255,26.28830458078999,0 -107.985348033574,26.2818632782313,0 -107.9517697772929,26.18114788373233,0 -107.9333703636672,26.18980289001802,0 -107.933356473364,26.18980943361058,0 -107.9333031739304,26.18983448911396,0 -107.8562645357249,26.2260351226164,0 -107.8994362969375,26.2963588189584,0 -107.8994880002151,26.29644298108059,0 -107.8994738744474,26.29670344230068,0 -107.8987806422674,26.30948572841306,0 -107.9030894678093,26.31855925318332,0 -107.9147580701316,26.31182424301605,0 -107.9156786990081,26.31087405770669,0 -108.0107382801958,26.43454929819947,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</MultiGeometry>
+		<atom:link rel="app" href="https://www.google.com/earth/about/versions/#earth-pro" title="Google Earth Pro 7.3.6.10441"></atom:link>
+	</Placemark>
+</Document>
+</kml>
