@@ -1,1 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoTool Forestal TVH</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <script src="https://unpkg.com/sql.js@1.8.0/dist/sql-wasm.js"></script>
+    <script src="https://unpkg.com/leaflet-mbtiles@latest/leaflet-mbtiles.js"></script>
 
+    <style>
+        :root { --primary: #00ff88; --dark: #0f172a; --glass: rgba(15, 23, 42, 0.9); }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #000; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
+
+        /* HEADER PROFESIONAL */
+        header {
+            position: absolute; top: 0; width: 100%; z-index: 1001;
+            background: var(--glass); backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box;
+        }
+        .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; }
+        .dot { height: 8px; width: 8px; background: #94a3b8; border-radius: 50%; transition: 0.3s; }
+        .dot.active { background: var(--primary); box-shadow: 0 0 10px var(--primary); }
+
+        /* PANEL COORDINADAS GPS (FIJAS AL SENSOR) */
+        #gps-panel {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: var(--glass); backdrop-filter: blur(15px);
+            padding: 15px 30px; border-radius: 15px; border: 1px solid var(--primary);
+            display: flex; gap: 40px; box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+        }
+        .data-group { display: flex; flex-direction: column; }
+        .label { font-size: 10px; color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+        .value { font-family: 'JetBrains Mono', monospace; font-size: 1.2rem; color: #fff; }
+
+        /* BOTONES LATERALES */
+        .controls { position: absolute; top: 80px; right: 15px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .btn { 
+            background: var(--glass); border: 1px solid rgba(255,255,255,0.2); color: white;
+            padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 13px;
+            transition: 0.2s; display: flex; align-items: center; gap: 8px;
+        }
+        .btn:hover { background: #1e293b; border-color: var(--primary); }
+        .btn-gps { background: var(--primary); color: #000; border: none; }
+
+        #fileInput { display: none; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div style="color: white; font-weight: 800; font-size: 18px;">GEOTOOL <span style="color:var(--primary)">FORESTAL TVH</span></div>
+        <div class="status">
+            <div id="gps-dot" class="dot"></div>
+            <span id="gps-status">GPS DESCONECTADO</span>
+        </div>
+    </header>
+
+    <div class="controls">
+        <button class="btn btn-gps" id="locate-btn">📍 INICIAR TRACKING GPS</button>
+        <button class="btn" onclick="document.getElementById('fileInput').click()">📁 CARGAR (MBTILES/KML/SHP)</button>
+        <button class="btn" id="export-btn">📥 EXPORTAR CAPTURAS</button>
+        <input type="file" id="fileInput" accept=".mbtiles,.zip,.kml">
+    </div>
+
+    <div id="gps-panel">
+        <div class="data-group">
+            <span class="label">Geográficas (WGS84)</span>
+            <span id="geo-val" class="value">---.------, ---.------</span>
+        </div>
+        <div class="data-group">
+            <span class="label" id="utm-label">UTM (ZONA --)</span>
+            <span id="utm-val" class="value">000000.00 E, 0000000.00 N</span>
+        </div>
+        <div class="data-group">
+            <span class="label">Precisión</span>
+            <span id="acc-val" class="value">0.0 m</span>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // 1. Configuración del Mapa
+        const satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            subdomains:['mt0','mt1','mt2','mt3'], maxZoom: 20
+        });
+        const map = L.map('map', { center: [0, 0], zoom: 2, layers: [satellite], zoomControl: false });
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        let userMarker, accuracyCircle, capturedPoints = [];
+
+        // 2. Lógica GPS Real-Time (Vinculada al Cuadro)
+        function updateGPSTable(lat, lng, acc) {
+            document.getElementById('geo-val').innerText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            document.getElementById('acc-val').innerText = `${acc.toFixed(1)} m`;
+            
+            const zone = Math.floor((lng + 180) / 6) + 1;
+            const utmProj = `+proj=utm +zone=${zone} +datum=WGS84 +units=m +no_defs`;
+            const utm = proj4(proj4.WGS84, utmProj, [lng, lat]);
+            
+            document.getElementById('utm-label').innerText = `UTM ZONA ${zone}N`;
+            document.getElementById('utm-val').innerText = `${utm[0].toFixed(2)} E, ${utm[1].toFixed(2)} N`;
+            
+            document.getElementById('gps-dot').classList.add('active');
+            document.getElementById('gps-status').innerText = 'GPS SINCRONIZADO';
+        }
+
+        document.getElementById('locate-btn').onclick = () => {
+            map.locate({ setView: true, maxZoom: 18, watch: true, enableHighAccuracy: true });
+        };
+
+        map.on('locationfound', e => {
+            const { lat, lng } = e.latlng;
+            updateGPSTable(lat, lng, e.accuracy);
+
+            if (!userMarker) {
+                userMarker = L.marker(e.latlng).addTo(map);
+                accuracyCircle = L.circle(e.latlng, { radius: e.accuracy/2, color: '#00ff88', fillOpacity: 0.1 }).addTo(map);
+            } else {
+                userMarker.setLatLng(e.latlng);
+                accuracyCircle.setLatLng(e.latlng).setRadius(e.accuracy/2);
+            }
+        });
+
+        // 3. Carga de Archivos (MBTiles, SHP, KML)
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            if (file.name.endsWith('.mbtiles')) {
+                reader.onload = e => {
+                    const layer = L.tileLayer.mbTiles(e.target.result, { minZoom: 0, maxZoom: 20 }).addTo(map);
+                    alert("MBTiles cargado correctamente.");
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (file.name.endsWith('.zip')) {
+                reader.onload = e => {
+                    shp(e.target.result).then(geojson => L.geoJSON(geojson).addTo(map));
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        // 4. Captura de Puntos
+        map.on('click', e => {
+            const name = prompt("Nombre de la observación:");
+            if (name) {
+                capturedPoints.push({ name, lat: e.latlng.lat, lng: e.latlng.lng, time: new Date().toISOString() });
+                L.marker(e.latlng).addTo(map).bindPopup(`<b>${name}</b>`).openPopup();
+            }
+        });
+
+        document.getElementById('export-btn').onclick = () => {
+            let csv = "Punto,Lat,Lon,Time\n";
+            capturedPoints.forEach(p => csv += `${p.name},${p.lat},${p.lng},${p.time}\n`);
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mrv_export.csv'; a.click();
+        };
+
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    </script>
+</body>
+</html>
