@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Inventario Forestal - Zona Durango</name>
+    <description>Datos de ejemplo para prueba de GeoTool Forestal TVH</description>
+    
+    <!-- Estilo para puntos -->
+    <Style id="arbol">
+      <IconStyle>
+        <color>ff00ff00</color>
+        <scale>1.2</scale>
+        <Icon>
+          <href>http://maps.google.com/mapfiles/kml/shapes/tree.png</href>
+        </Icon>
+      </IconStyle>
+    </Style>
+    
+    <!-- Estilo para polígonos -->
+    <Style id="parcela">
+      <LineStyle>
+        <color>ff00ff00</color>
+        <width>2</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>4400ff00</color>
+      </PolyStyle>
+    </Style>
+    
+    <!-- Punto: Árbol muestra 1 -->
+    <Placemark>
+      <name>Pino silvestre #001</name>
+      <description><![CDATA[
+        <b>Especie:</b> Pinus sylvestris<br>
+        <b>Altura:</b> 15.5 m<br>
+        <b>DAP:</b> 35 cm<br>
+        <b>Estado:</b> Saludable<br>
+        <b>Fecha:</b> 2026-02-10
+      ]]></description>
+      <styleUrl>#arbol</styleUrl>
+      <Point>
+        <coordinates>-104.6532,24.0277,1850</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- Punto: Árbol muestra 2 -->
+    <Placemark>
+      <name>Encino roble #002</name>
+      <description><![CDATA[
+        <b>Especie:</b> Quercus robur<br>
+        <b>Altura:</b> 12.2 m<br>
+        <b>DAP:</b> 42 cm<br>
+        <b>Estado:</b> Saludable<br>
+        <b>Fecha:</b> 2026-02-10
+      ]]></description>
+      <styleUrl>#arbol</styleUrl>
+      <Point>
+        <coordinates>-104.6550,24.0290,1855</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- Punto: Árbol muestra 3 -->
+    <Placemark>
+      <name>Abeto douglas #003</name>
+      <description><![CDATA[
+        <b>Especie:</b> Pseudotsuga menziesii<br>
+        <b>Altura:</b> 18.7 m<br>
+        <b>DAP:</b> 38 cm<br>
+        <b>Estado:</b> Plagas detectadas<br>
+        <b>Fecha:</b> 2026-02-10
+      ]]></description>
+      <styleUrl>#arbol</styleUrl>
+      <Point>
+        <coordinates>-104.6545,24.0265,1848</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- Línea: Transecto forestal -->
+    <Placemark>
+      <name>Transecto A-B</name>
+      <description><![CDATA[
+        <b>Longitud:</b> ~450 m<br>
+        <b>Tipo:</b> Inventario sistemático<br>
+        <b>Muestras:</b> 12 árboles<br>
+        <b>Fecha:</b> 2026-02-10
+      ]]></description>
+      <LineString>
+        <coordinates>
+          -104.6520,24.0270,1850
+          -104.6530,24.0275,1852
+          -104.6540,24.0280,1854
+          -104.6550,24.0285,1856
+          -104.6560,24.0290,1858
+        </coordinates>
+      </LineString>
+    </Placemark>
+    
+    <!-- Polígono: Parcela de reforestación -->
+    <Placemark>
+      <name>Parcela Reforestación A1</name>
+      <description><![CDATA[
+        <b>Área:</b> ~2.5 hectáreas<br>
+        <b>Especies plantadas:</b> Pinus, Quercus<br>
+        <b>Número de árboles:</b> 850<br>
+        <b>Año plantación:</b> 2024<br>
+        <b>Supervivencia:</b> 92%<br>
+        <b>Estado:</b> Activa
+      ]]></description>
+      <styleUrl>#parcela</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -104.6500,24.0250,1845
+              -104.6580,24.0250,1845
+              -104.6580,24.0300,1860
+              -104.6500,24.0300,1860
+              -104.6500,24.0250,1845
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    
+    <!-- Polígono: Zona de protección -->
+    <Placemark>
+      <name>Zona de Conservación B2</name>
+      <description><![CDATA[
+        <b>Área:</b> ~1.8 hectáreas<br>
+        <b>Tipo:</b> Bosque maduro<br>
+        <b>Edad promedio:</b> 85 años<br>
+        <b>Estado:</b> Protección estricta<br>
+        <b>Acceso:</b> Restringido
+      ]]></description>
+      <styleUrl>#parcela</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -104.6600,24.0260,1870
+              -104.6650,24.0260,1870
+              -104.6650,24.0290,1875
+              -104.6600,24.0290,1875
+              -104.6600,24.0260,1870
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    
+  </Document>
+</kml>

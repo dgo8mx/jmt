@@ -1,0 +1,927 @@
+/* ================================
+   GEOTOOL FORESTAL TVH - STYLES.CSS
+   Sistema MRV con gestión multi-capa
+   ================================ */
+
+:root {
+    /* Colores Tema Oscuro (default) */
+    --color-primary: #4a9d5f;
+    --color-primary-dark: #3a7d4f;
+    --color-primary-light: #5fb574;
+    
+    --color-bg: #0f1419;
+    --color-bg-elevated: #1a1f26;
+    --color-bg-panel: #151b22;
+    --color-bg-input: #1e2531;
+    
+    --color-text: #e4e8ed;
+    --color-text-secondary: #9ba3af;
+    --color-text-muted: #6b7280;
+    
+    --color-border: #2d3748;
+    --color-border-light: #374151;
+    
+    --color-success: #4ade80;
+    --color-warning: #fbbf24;
+    --color-error: #f87171;
+    --color-info: #60a5fa;
+    
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
+    
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tema Claro */
+[data-theme="light"] {
+    --color-bg: #f9fafb;
+    --color-bg-elevated: #ffffff;
+    --color-bg-panel: #ffffff;
+    --color-bg-input: #f3f4f6;
+    
+    --color-text: #111827;
+    --color-text-secondary: #4b5563;
+    --color-text-muted: #9ca3af;
+    
+    --color-border: #e5e7eb;
+    --color-border-light: #d1d5db;
+    
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* ================================
+   BASE
+   ================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+/* ================================
+   HEADER
+   ================================ */
+
+.main-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 1000;
+    box-shadow: var(--shadow-sm);
+}
+
+.header-left,
+.header-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-right {
+    justify-content: flex-end;
+}
+
+.header-center {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+/* Logo */
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    user-select: none;
+}
+
+.logo-icon {
+    font-size: 24px;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+
+.logo-main {
+    font-size: 16px;
+    letter-spacing: -0.5px;
+    color: var(--color-primary);
+}
+
+.logo-sub {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    letter-spacing: 1px;
+}
+
+/* Status Indicators */
+.status-indicator {
+    display: none; /* Oculto en móvil */
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--color-bg-input);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+}
+
+.status-indicator.active .status-dot {
+    background: var(--color-success);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Icon Buttons */
+.icon-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.icon-btn:hover {
+    background: var(--color-bg-input);
+    color: var(--color-text);
+}
+
+.icon-btn:active {
+    transform: scale(0.95);
+}
+
+/* ================================
+   SIDE PANEL
+   ================================ */
+
+.side-panel {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    width: 100%;
+    max-width: 380px;
+    height: calc(100vh - 60px);
+    background: var(--color-bg-panel);
+    border-right: 1px solid var(--color-border);
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+    transition: var(--transition-slow);
+}
+
+.side-panel.hidden {
+    transform: translateX(-100%);
+}
+
+/* Panel Tabs */
+.panel-tabs {
+    display: flex;
+    background: var(--color-bg-elevated);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 14px 8px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+    border-bottom: 2px solid transparent;
+}
+
+.tab-btn:hover {
+    background: var(--color-bg-input);
+    color: var(--color-text);
+}
+
+.tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.tab-btn svg {
+    opacity: 0.7;
+}
+
+.tab-btn.active svg {
+    opacity: 1;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+    flex-direction: column;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.tab-content.active {
+    display: flex;
+}
+
+/* Panel Sections */
+.panel-section {
+    padding: 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Badge */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: var(--color-primary);
+    color: white;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* ================================
+   UPLOAD ZONE
+   ================================ */
+
+.upload-zone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.upload-zone:hover {
+    border-color: var(--color-primary);
+    background: var(--color-bg-input);
+}
+
+.upload-zone.drag-over {
+    border-color: var(--color-primary);
+    background: rgba(74, 157, 95, 0.1);
+}
+
+.upload-zone svg {
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+}
+
+.upload-zone p {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--color-text);
+}
+
+.upload-zone small {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    display: block;
+    margin-bottom: 16px;
+}
+
+/* ================================
+   BUTTONS
+   ================================ */
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: var(--transition);
+    font-family: inherit;
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+    background: var(--color-bg-input);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover {
+    background: var(--color-border);
+}
+
+.btn-full {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+/* ================================
+   LAYER LIST
+   ================================ */
+
+.layer-list,
+.capture-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.layer-item,
+.capture-item {
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: var(--transition);
+}
+
+.layer-item:hover,
+.capture-item:hover {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border-light);
+}
+
+.layer-icon,
+.capture-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.layer-info,
+.capture-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.layer-name,
+.capture-name {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.layer-meta,
+.capture-meta {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+}
+
+.layer-actions,
+.capture-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.layer-btn,
+.capture-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.layer-btn:hover,
+.capture-btn:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--color-text-muted);
+}
+
+.empty-state svg {
+    margin-bottom: 12px;
+}
+
+.empty-state p {
+    font-size: 13px;
+}
+
+/* ================================
+   BASEMAP GRID
+   ================================ */
+
+.basemap-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.basemap-btn {
+    background: var(--color-bg-input);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0;
+    cursor: pointer;
+    transition: var(--transition);
+    overflow: hidden;
+}
+
+.basemap-btn:hover {
+    border-color: var(--color-border-light);
+    transform: translateY(-2px);
+}
+
+.basemap-btn.active {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.basemap-preview {
+    width: 100%;
+    height: 60px;
+}
+
+.basemap-btn span {
+    display: block;
+    padding: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* ================================
+   TOOL GRID
+   ================================ */
+
+.tool-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.tool-btn {
+    background: var(--color-bg-input);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    transition: var(--transition);
+    color: var(--color-text);
+}
+
+.tool-btn:hover {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border-light);
+}
+
+.tool-btn.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+
+.tool-btn svg {
+    width: 28px;
+    height: 28px;
+}
+
+.tool-btn span {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ================================
+   STATS GRID
+   ================================ */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.stat-card {
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+}
+
+.stat-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 4px;
+    color: var(--color-primary);
+}
+
+.stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+}
+
+/* ================================
+   GPS PANEL
+   ================================ */
+
+.gps-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-bg-elevated);
+    border-top: 1px solid var(--color-border);
+    padding: 12px 16px;
+    z-index: 800;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.gps-control {
+    margin-bottom: 12px;
+}
+
+.btn-gps {
+    width: 100%;
+    padding: 12px 20px;
+    background: var(--color-bg-input);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: var(--transition);
+}
+
+.btn-gps:hover {
+    background: var(--color-bg);
+    border-color: var(--color-border-light);
+}
+
+.btn-gps.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+
+.gps-data {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.coord-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.coord-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+}
+
+.coord-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* ================================
+   MAP
+   ================================ */
+
+#map {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 180px;
+    z-index: 1;
+}
+
+/* GPS Marker Custom */
+.gps-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+/* ================================
+   LOADING OVERLAY
+   ================================ */
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 20, 25, 0.95);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-overlay p {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+}
+
+/* ================================
+   RESPONSIVE - TABLET
+   ================================ */
+
+@media (min-width: 768px) {
+    .status-indicator {
+        display: flex;
+    }
+    
+    .side-panel {
+        max-width: 380px;
+    }
+    
+    #map {
+        left: 380px;
+    }
+    
+    .side-panel.hidden + #map {
+        left: 0;
+    }
+    
+    .gps-data {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .logo-text {
+        display: flex;
+    }
+}
+
+/* ================================
+   RESPONSIVE - DESKTOP
+   ================================ */
+
+@media (min-width: 1024px) {
+    .main-header {
+        height: 70px;
+        padding: 0 24px;
+    }
+    
+    .side-panel {
+        top: 70px;
+        height: calc(100vh - 70px);
+    }
+    
+    #map {
+        top: 70px;
+    }
+    
+    .gps-panel {
+        left: 380px;
+    }
+    
+    .side-panel.hidden ~ .gps-panel {
+        left: 0;
+    }
+}
+
+/* ================================
+   SCROLLBAR CUSTOM
+   ================================ */
+
+.tab-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tab-content::-webkit-scrollbar-track {
+    background: var(--color-bg);
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+}
+
+.tab-content::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-light);
+}
+
+/* ================================
+   LEAFLET OVERRIDES
+   ================================ */
+
+.leaflet-container {
+    background: #1a1f26;
+}
+
+.leaflet-control-zoom {
+    border: 1px solid var(--color-border) !important;
+    border-radius: var(--radius-md) !important;
+    overflow: hidden;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.leaflet-control-zoom a {
+    background: var(--color-bg-elevated) !important;
+    color: var(--color-text) !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background: var(--color-bg-input) !important;
+}
+
+.leaflet-control-scale {
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--color-text);
+}
+
+/* ================================
+   PRINT STYLES
+   ================================ */
+
+@media print {
+    .main-header,
+    .side-panel,
+    .gps-panel {
+        display: none;
+    }
+    
+    #map {
+        position: static;
+        width: 100%;
+        height: 100vh;
+    }
+}
+
+/* ================================
+   ACCESSIBILITY
+   ================================ */
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Focus Styles */
+button:focus-visible,
+.btn:focus-visible,
+.icon-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
