@@ -496,24 +496,92 @@ class GeoToolApp {
         this.showLoading(true);
         
         try {
+            // ✅ Validar que es un archivo válido
+            if (!file || !file.name) {
+                throw new Error('Archivo no válido');
+            }
+            
+            console.log('📂 Archivo seleccionado:', file.name, 'Tamaño:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+            
             const fileName = file.name.toLowerCase();
             
-            if (fileName.endsWith('.geojson') || fileName.endsWith('.json')) {
-                await this.loadGeoJSON(file);
-            } else if (fileName.endsWith('.kml')) {
-                await this.loadKML(file);
-            } else if (fileName.endsWith('.zip')) {
-                await this.loadShapefile(file);
-            } else if (fileName.endsWith('.mbtiles')) {
+            // ✅ Detectar formato por extensión Y tipo MIME
+            const isMBTiles = fileName.endsWith('.mbtiles') || 
+                             fileName.endsWith('.sqlite') ||
+                             file.type === 'application/x-sqlite3' ||
+                             file.type === 'application/vnd.sqlite3' ||
+                             file.type === 'application/octet-stream';
+            
+            const isGeoJSON = fileName.endsWith('.geojson') || 
+                            fileName.endsWith('.json') ||
+                            file.type === 'application/geo+json' ||
+                            file.type === 'application/json';
+            
+            const isKML = fileName.endsWith('.kml') || 
+                         file.type === 'application/vnd.google-earth.kml+xml';
+            
+            const isZip = fileName.endsWith('.zip') || 
+                         file.type === 'application/zip';
+            
+            // ✅ Validar tamaño (advertir si es muy grande)
+            const maxSize = 200 * 1024 * 1024; // 200 MB
+            if (file.size > maxSize) {
+                const proceed = confirm(
+                    `⚠️ Archivo muy grande (${(file.size / 1024 / 1024).toFixed(0)} MB).\n\n` +
+                    `Puede tardar varios minutos y consumir mucha batería.\n\n` +
+                    `¿Continuar de todos modos?`
+                );
+                if (!proceed) {
+                    this.showLoading(false);
+                    return;
+                }
+            }
+            
+            // ✅ Cargar según tipo
+            if (isMBTiles) {
+                console.log('✅ Detectado como MBTiles');
                 await this.loadMBTiles(file);
+            } else if (isGeoJSON) {
+                console.log('✅ Detectado como GeoJSON');
+                await this.loadGeoJSON(file);
+            } else if (isKML) {
+                console.log('✅ Detectado como KML');
+                await this.loadKML(file);
+            } else if (isZip) {
+                console.log('✅ Detectado como ZIP (Shapefile)');
+                await this.loadShapefile(file);
             } else {
-                throw new Error('Formato no soportado. Use: GeoJSON, KML, Shapefile (ZIP) o MBTiles');
+                throw new Error(
+                    `❌ Formato no reconocido.\n\n` +
+                    `Archivo: ${file.name}\n` +
+                    `Tipo: ${file.type || 'desconocido'}\n\n` +
+                    `Formatos aceptados:\n` +
+                    `• .mbtiles\n` +
+                    `• .geojson / .json\n` +
+                    `• .kml\n` +
+                    `• .zip (Shapefile)`
+                );
             }
         } catch (error) {
-            console.error('Error cargando archivo:', error);
-            alert('Error al cargar el archivo: ' + error.message);
+            console.error('❌ Error cargando archivo:', error);
+            
+            // ✅ Mensaje de error más amigable
+            let errorMsg = error.message;
+            
+            if (error.message.includes('SQL.js')) {
+                errorMsg = '⚠️ Error al cargar la librería de base de datos.\n\nRecarga la página e intenta de nuevo.';
+            } else if (error.message.includes('memoria') || error.message.includes('memory')) {
+                errorMsg = '⚠️ Archivo muy grande para la memoria disponible.\n\nIntenta con un archivo más pequeño.';
+            } else if (file.size === 0) {
+                errorMsg = '⚠️ El archivo está vacío o corrupto.';
+            }
+            
+            alert(errorMsg);
         } finally {
             this.showLoading(false);
+            // ✅ Limpiar el input para permitir recargar el mismo archivo
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) fileInput.value = '';
         }
     }
     
@@ -1356,13 +1424,35 @@ class GeoToolApp {
         const uploadZone = document.getElementById('upload-zone');
         
         document.getElementById('browse-btn').addEventListener('click', () => {
+            console.log('🔘 Botón examinar presionado');
             fileInput.click();
         });
         
-        fileInput.addEventListener('change', (e) => {
-            Array.from(e.target.files).forEach(file => {
-                this.handleFileUpload(file);
-            });
+        // ✅ Evento mejorado para móviles
+        fileInput.addEventListener('change', async (e) => {
+            console.log('📁 Evento change disparado');
+            console.log('📊 Archivos seleccionados:', e.target.files.length);
+            
+            if (e.target.files.length === 0) {
+                console.warn('⚠️ No se seleccionó ningún archivo');
+                return;
+            }
+            
+            // ✅ Procesar cada archivo
+            for (const file of e.target.files) {
+                console.log('📂 Procesando:', file.name, file.type, file.size);
+                await this.handleFileUpload(file);
+            }
+        });
+        
+        // ✅ Listener adicional para iOS
+        fileInput.addEventListener('input', async (e) => {
+            console.log('📱 Evento input disparado (iOS)');
+            if (e.target.files.length > 0) {
+                for (const file of e.target.files) {
+                    await this.handleFileUpload(file);
+                }
+            }
         });
         
         // Drag & Drop
