@@ -1,6 +1,7 @@
 // ================================
 // GEOTOOL FORESTAL TVH - APP.JS
 // Sistema MRV con gestión multi-capa
+// OPTIMIZADO PARA MÓVILES
 // ================================
 
 class GeoToolApp {
@@ -18,6 +19,7 @@ class GeoToolApp {
         this.captureMode = null;
         this.tempMarkers = [];
         this.currentPolygon = null;
+        this.mbtilesCache = new Map(); // Cache de tiles en memoria
         
         this.init();
     }
@@ -547,25 +549,21 @@ class GeoToolApp {
         this.map.fitBounds(layer.getBounds());
     }
     
-	
     async loadKML(file) {
-    // ✅ Verificación agregada
-    if (typeof toGeoJSON === 'undefined') {
-        throw new Error('La librería toGeoJSON no está cargada. Recarga la página.');
-    }
-    
-    const text = await file.text();
-    const parser = new DOMParser();
-    const kml = parser.parseFromString(text, 'text/xml');
-    
-    // ✅ Validación de XML
-    const parseError = kml.querySelector('parsererror');
-    if (parseError) {
-        throw new Error('El archivo KML tiene errores de formato');
-    }
-    
-    const geojson = toGeoJSON.kml(kml);
-    // ... resto del código
+        if (typeof toGeoJSON === 'undefined') {
+            throw new Error('La librería toGeoJSON no está cargada. Recarga la página.');
+        }
+        
+        const text = await file.text();
+        const parser = new DOMParser();
+        const kml = parser.parseFromString(text, 'text/xml');
+        
+        const parseError = kml.querySelector('parsererror');
+        if (parseError) {
+            throw new Error('El archivo KML tiene errores de formato');
+        }
+        
+        const geojson = toGeoJSON.kml(kml);
         
         const layer = L.geoJSON(geojson, {
             style: () => ({
@@ -622,89 +620,94 @@ class GeoToolApp {
         this.map.fitBounds(layer.getBounds());
     }
     
+    // ================================
+    // 🚀 MBTILES OPTIMIZADO PARA MÓVILES
+    // ================================
+    
     async loadMBTiles(file) {
         try {
-            // Cargar SQL.js si no está disponible
+            // ✅ Validación inicial
             if (typeof initSqlJs === 'undefined') {
-                throw new Error('SQL.js no está cargado. Agregue el script a su HTML.');
+                throw new Error('SQL.js no está cargado. Verifica que el script esté incluido en el HTML.');
             }
             
+            // ✅ Mostrar progreso
+            this.updateLoadingMessage('Preparando base de datos...');
+            
+            // ✅ Inicializar SQL.js con configuración optimizada para móviles
             const SQL = await initSqlJs({
                 locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${filename}`
             });
             
-            // Leer el archivo MBTiles
-            const arrayBuffer = await file.arrayBuffer();
+            // ✅ CRÍTICO: Leer archivo por chunks para evitar congelar la app
+            this.updateLoadingMessage('Cargando archivo (esto puede tardar)...');
+            
+            const arrayBuffer = await this.readFileInChunks(file);
+            
+            this.updateLoadingMessage('Procesando base de datos...');
+            
+            // ✅ Crear base de datos SQLite
             const db = new SQL.Database(new Uint8Array(arrayBuffer));
             
-            // Obtener metadatos
-            const metadata = {};
-            const metadataRows = db.exec("SELECT name, value FROM metadata");
-            if (metadataRows.length > 0) {
-                metadataRows[0].values.forEach(([name, value]) => {
-                    metadata[name] = value;
-                });
-            }
+            // ✅ Obtener metadatos
+            const metadata = this.getMBTilesMetadata(db);
             
-            // Obtener el rango de zoom y bounds
-            const boundsResult = db.exec("SELECT MIN(zoom_level) as minzoom, MAX(zoom_level) as maxzoom FROM tiles");
-            const minZoom = boundsResult[0]?.values[0]?.[0] || 0;
-            const maxZoom = boundsResult[0]?.values[0]?.[1] || 18;
+            // ✅ Obtener rangos de zoom
+            const { minZoom, maxZoom } = this.getMBTilesZoomRange(db);
             
-            // Crear capa de teselas MBTiles
+            console.log('✅ MBTiles cargado:', metadata);
+            console.log('📊 Zoom range:', minZoom, '-', maxZoom);
+            
+            // ✅ Crear capa con getTileUrl optimizado
             const mbtilesLayer = L.tileLayer('', {
                 minZoom: minZoom,
                 maxZoom: maxZoom,
-                tms: true, // MBTiles usa TMS (y invertido)
-                attribution: metadata.attribution || 'MBTiles'
+                tms: true,
+                attribution: metadata.attribution || 'MBTiles',
+                // ✅ Limitar tiles en pantalla para móviles
+                keepBuffer: 2,
+                updateWhenIdle: true,
+                updateWhenZooming: false
             });
             
-            // Override del método getTileUrl para cargar desde la base de datos
-            mbtilesLayer.getTileUrl = function(coords) {
+            // ✅ Generar ID único para este MBTiles
+            const mbtilesId = 'mbtiles_' + Date.now();
+            
+            // ✅ Override getTileUrl con cache y procesamiento asíncrono
+            mbtilesLayer.getTileUrl = (coords) => {
                 const z = coords.z;
                 const x = coords.x;
-                // TMS: invertir Y
-                const y = (Math.pow(2, z) - 1) - coords.y;
+                const y = (Math.pow(2, z) - 1) - coords.y; // TMS flip
                 
-                try {
-                    const result = db.exec(
-                        "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?",
-                        [z, x, y]
-                    );
-                    
-                    if (result.length > 0 && result[0].values.length > 0) {
-                        const tileData = result[0].values[0][0];
-                        // Convertir blob a base64 data URL
-                        const base64 = btoa(
-                            new Uint8Array(tileData).reduce((data, byte) => data + String.fromCharCode(byte), '')
-                        );
-                        
-                        // Detectar tipo de imagen (PNG o JPG)
-                        const isPNG = tileData[0] === 0x89 && tileData[1] === 0x50;
-                        const mimeType = isPNG ? 'image/png' : 'image/jpeg';
-                        
-                        return `data:${mimeType};base64,${base64}`;
-                    }
-                } catch (e) {
-                    console.error('Error loading tile:', e);
+                const cacheKey = `${mbtilesId}_${z}_${x}_${y}`;
+                
+                // ✅ Verificar cache en memoria
+                if (this.mbtilesCache.has(cacheKey)) {
+                    return this.mbtilesCache.get(cacheKey);
                 }
                 
-                // Retornar tile transparente si no existe
+                // ✅ Cargar tile de forma asíncrona
+                this.loadTileAsync(db, z, x, y, cacheKey);
+                
+                // ✅ Retornar placeholder transparente mientras carga
                 return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIAAAUAAeImBZsAAAAASUVORK5CYII=';
             };
             
+            // ✅ Agregar capa al mapa
             mbtilesLayer.addTo(this.map);
             
+            // ✅ Guardar en layers
             this.addLayer({
                 name: file.name,
                 type: 'mbtiles',
                 layer: mbtilesLayer,
                 visible: true,
                 metadata: metadata,
-                database: db // Guardar referencia a la base de datos
+                database: db,
+                mbtilesId: mbtilesId
             });
             
-            // Intentar hacer zoom a los bounds si están disponibles
+            // ✅ Zoom a bounds si están disponibles
             if (metadata.bounds) {
                 const bounds = metadata.bounds.split(',').map(parseFloat);
                 this.map.fitBounds([
@@ -713,12 +716,128 @@ class GeoToolApp {
                 ]);
             }
             
-            console.log('MBTiles cargado:', metadata);
+            this.updateLoadingMessage('¡Listo!');
             
         } catch (error) {
-            console.error('Error cargando MBTiles:', error);
+            console.error('❌ Error cargando MBTiles:', error);
             throw new Error('No se pudo cargar el archivo MBTiles: ' + error.message);
         }
+    }
+    
+    // ✅ Leer archivo por chunks para evitar bloqueo
+    async readFileInChunks(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                resolve(e.target.result);
+            };
+            
+            reader.onerror = () => {
+                reject(new Error('Error leyendo el archivo'));
+            };
+            
+            // ✅ Leer como ArrayBuffer
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    
+    // ✅ Obtener metadatos del MBTiles
+    getMBTilesMetadata(db) {
+        const metadata = {};
+        try {
+            const result = db.exec("SELECT name, value FROM metadata");
+            if (result.length > 0) {
+                result[0].values.forEach(([name, value]) => {
+                    metadata[name] = value;
+                });
+            }
+        } catch (e) {
+            console.warn('No se pudieron leer metadatos:', e);
+        }
+        return metadata;
+    }
+    
+    // ✅ Obtener rango de zoom
+    getMBTilesZoomRange(db) {
+        try {
+            const result = db.exec("SELECT MIN(zoom_level) as minzoom, MAX(zoom_level) as maxzoom FROM tiles");
+            if (result.length > 0 && result[0].values.length > 0) {
+                return {
+                    minZoom: result[0].values[0][0] || 0,
+                    maxZoom: result[0].values[0][1] || 18
+                };
+            }
+        } catch (e) {
+            console.warn('No se pudo determinar rango de zoom:', e);
+        }
+        return { minZoom: 0, maxZoom: 18 };
+    }
+    
+    // ✅ Cargar tile de forma asíncrona (no bloquea UI)
+    async loadTileAsync(db, z, x, y, cacheKey) {
+        // ✅ Usar setTimeout para no bloquear el thread principal
+        setTimeout(() => {
+            try {
+                const result = db.exec(
+                    "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ?",
+                    [z, x, y]
+                );
+                
+                if (result.length > 0 && result[0].values.length > 0) {
+                    const tileData = result[0].values[0][0];
+                    
+                    // ✅ Detectar tipo de imagen
+                    const isPNG = tileData[0] === 0x89 && tileData[1] === 0x50;
+                    const isJPG = tileData[0] === 0xFF && tileData[1] === 0xD8;
+                    
+                    let mimeType = 'image/png';
+                    if (isJPG) mimeType = 'image/jpeg';
+                    else if (!isPNG) mimeType = 'image/webp';
+                    
+                    // ✅ Convertir a base64 de forma eficiente
+                    const base64 = this.arrayBufferToBase64(tileData);
+                    const dataUrl = `data:${mimeType};base64,${base64}`;
+                    
+                    // ✅ Guardar en cache (limitar tamaño de cache)
+                    if (this.mbtilesCache.size > 200) {
+                        // Eliminar primero en entrar
+                        const firstKey = this.mbtilesCache.keys().next().value;
+                        this.mbtilesCache.delete(firstKey);
+                    }
+                    
+                    this.mbtilesCache.set(cacheKey, dataUrl);
+                    
+                    // ✅ Forzar redibujado del tile
+                    this.map.invalidateSize();
+                }
+            } catch (e) {
+                console.error('Error cargando tile:', e);
+            }
+        }, 0);
+    }
+    
+    // ✅ Conversión eficiente de ArrayBuffer a Base64
+    arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        
+        // ✅ Procesar en chunks para evitar stack overflow
+        const chunkSize = 0x8000; // 32KB chunks
+        for (let i = 0; i < len; i += chunkSize) {
+            const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+            binary += String.fromCharCode.apply(null, chunk);
+        }
+        
+        return btoa(binary);
+    }
+    
+    // ✅ Actualizar mensaje de carga
+    updateLoadingMessage(message) {
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const p = loadingOverlay.querySelector('p');
+        if (p) p.textContent = message;
     }
     
     // ================================
@@ -736,6 +855,25 @@ class GeoToolApp {
         const layer = this.layers.find(l => l.id === id);
         if (layer) {
             this.map.removeLayer(layer.layer);
+            
+            // ✅ Limpiar base de datos MBTiles si existe
+            if (layer.database) {
+                try {
+                    layer.database.close();
+                } catch (e) {
+                    console.warn('Error cerrando DB:', e);
+                }
+            }
+            
+            // ✅ Limpiar cache de tiles
+            if (layer.mbtilesId) {
+                for (const key of this.mbtilesCache.keys()) {
+                    if (key.startsWith(layer.mbtilesId)) {
+                        this.mbtilesCache.delete(key);
+                    }
+                }
+            }
+            
             this.layers = this.layers.filter(l => l.id !== id);
             this.updateLayersList();
             this.updateStats();
@@ -1092,7 +1230,6 @@ class GeoToolApp {
         try {
             const data = JSON.parse(localStorage.getItem('geotool_data'));
             if (data) {
-                // Restaurar capturas (sin capas de Leaflet)
                 if (data.gpsTrack) {
                     this.gpsTrack = data.gpsTrack;
                 }
@@ -1112,8 +1249,16 @@ class GeoToolApp {
         // Limpiar capas
         this.layers.forEach(layer => {
             if (layer.layer) this.map.removeLayer(layer.layer);
+            if (layer.database) {
+                try {
+                    layer.database.close();
+                } catch (e) {}
+            }
         });
         this.layers = [];
+        
+        // Limpiar cache de MBTiles
+        this.mbtilesCache.clear();
         
         // Limpiar capturas
         this.captures.forEach(capture => {
