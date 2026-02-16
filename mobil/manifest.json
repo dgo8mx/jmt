@@ -3,6 +3,7 @@
   "short_name": "GeoTool",
   "description": "Sistema de captura de datos geoespaciales para inventario forestal",
   "start_url": "/jmt/mobil/",
+  "scope": "/jmt/mobil/",
   "display": "standalone",
   "background_color": "#0f1419",
   "theme_color": "#1a3d2e",
@@ -22,8 +23,5 @@
     }
   ],
   "categories": ["productivity", "utilities"],
-  "screenshots": [],
-  "permissions": [
-    "geolocation"
-  ]
+  "screenshots": []
 }

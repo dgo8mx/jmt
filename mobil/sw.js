@@ -1,12 +1,14 @@
 // Service Worker para GeoTool Forestal TVH
-const CACHE_NAME = 'geotool-v1.0.0';
-const BASE_PATH='/jmt/mobil';
+const CACHE_NAME = 'GeoTool Forestal TVH'; // ⬆️ Incrementada la versión
+const BASE_PATH = '/jmt/mobil'; // ✅ Ya lo tienes definido
+
+// ✅ CORRECCIÓN: Ahora SÍ usamos BASE_PATH en las rutas
 const ASSETS_TO_CACHE = [
-    '/',
-    '/index.html',
-    '/app.js',
-    '/styles.css',
-    '/manifest.json'
+    `${BASE_PATH}/`,
+    `${BASE_PATH}/index.html`,
+    `${BASE_PATH}/app.js`,
+    `${BASE_PATH}/styles.css`,
+    `${BASE_PATH}/manifest.json`
 ];
 
 // Instalación
@@ -15,11 +17,11 @@ self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('[SW] Cacheando archivos');
+                console.log('[SW] Cacheando archivos:', ASSETS_TO_CACHE);
                 return cache.addAll(ASSETS_TO_CACHE);
             })
             .catch((err) => {
-                console.log('[SW] Error al cachear:', err);
+                console.error('[SW] Error al cachear:', err);
             })
     );
     self.skipWaiting();
@@ -59,7 +61,14 @@ self.addEventListener('fetch', (event) => {
             })
             .catch(() => {
                 // Si falla la red, buscar en cache
-                return caches.match(event.request);
+                return caches.match(event.request)
+                    .then((cachedResponse) => {
+                        if (cachedResponse) {
+                            return cachedResponse;
+                        }
+                        // ✅ CORRECCIÓN: Si no encuentra nada, redirige al index
+                        return caches.match(`${BASE_PATH}/index.html`);
+                    });
             })
     );
 });
