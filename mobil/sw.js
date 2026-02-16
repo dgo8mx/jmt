@@ -1,5 +1,6 @@
 // Service Worker para GeoTool Forestal TVH
 const CACHE_NAME = 'geotool-v1.0.0';
+const BASE_PATH='/jmt/mobil/';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
