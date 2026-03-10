@@ -1,0 +1,2981 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a3a1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>JMT · Inventario Forestal</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+:root {
+  --pine: #1a3a1a;
+  --pine-mid: #2d5a2d;
+  --pine-light: #4a8a4a;
+  --bark: #5c3d2e;
+  --clay: #8b6346;
+  --moss: #6b7c3a;
+  --sky: #4a7fa5;
+  --gold: #d4a843;
+  --cream: #f5f0e8;
+  --white: #ffffff;
+  --danger: #c0392b;
+  --shadow: rgba(0,0,0,0.25);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: 'Outfit', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; font-family:var(--font); background:var(--pine); overflow:hidden; }
+
+/* ===== SPLASH ===== */
+#splash {
+  position:fixed; inset:0; background:linear-gradient(160deg, var(--pine) 0%, #0d2010 100%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:1000; transition:opacity .6s;
+}
+#splash .logo { width:80px; height:80px; margin-bottom:20px; }
+#splash h1 { color:var(--gold); font-size:28px; font-weight:700; letter-spacing:2px; }
+#splash p { color:rgba(255,255,255,.5); font-size:13px; margin-top:6px; }
+#splash .loading-bar { width:180px; height:3px; background:rgba(255,255,255,.1); border-radius:2px; margin-top:40px; overflow:hidden; }
+#splash .loading-fill { height:100%; background:var(--gold); animation:load 1.4s ease forwards; }
+@keyframes load { from{width:0} to{width:100%} }
+
+/* ===== LAYOUT ===== */
+#app { display:flex; flex-direction:column; height:100vh; background:var(--cream); }
+.app-hidden { display:none !important; }
+
+/* ===== HEADER ===== */
+.header {
+  background:var(--pine); color:var(--white); padding:12px 16px;
+  display:flex; align-items:center; gap:12px; flex-shrink:0;
+  box-shadow:0 2px 8px var(--shadow);
+}
+.header-back { background:none; border:none; color:var(--white); cursor:pointer; padding:6px; border-radius:8px; }
+.header-back:active { background:rgba(255,255,255,.15); }
+.header-title { flex:1; }
+.header-title h2 { font-size:16px; font-weight:600; }
+.header-title span { font-size:11px; color:rgba(255,255,255,.6); }
+.header-actions { display:flex; gap:8px; }
+.header-btn { background:rgba(255,255,255,.12); border:none; color:var(--white); padding:8px 12px; border-radius:8px; font-size:12px; font-family:var(--font); cursor:pointer; display:flex; align-items:center; gap:5px; }
+.header-btn:active { background:rgba(255,255,255,.25); }
+.header-btn svg { width:14px; height:14px; }
+
+/* ===== MAP VIEW ===== */
+#map-view { display:flex; flex-direction:column; flex:1; overflow:hidden; height:100%; }
+#map { width:100%; height:100%; z-index:1; }
+.map-toolbar {
+  background:var(--pine); padding:8px 12px;
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+}
+.map-toolbar select {
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2);
+  color:var(--white); padding:7px 10px; border-radius:8px; font-family:var(--font);
+  font-size:12px; flex:1;
+}
+.map-toolbar select option { background:var(--pine-mid); color:var(--white); }
+.btn-locate {
+  background:var(--gold); border:none; color:var(--pine); padding:8px 14px;
+  border-radius:8px; font-family:var(--font); font-weight:600; font-size:12px; cursor:pointer;
+  display:flex; align-items:center; gap:5px; white-space:nowrap;
+}
+.btn-locate:active { filter:brightness(.9); }
+
+/* GPS status dot (legacy, small use) */
+.gps-dot { width:8px; height:8px; border-radius:50%; background:#aaa; flex-shrink:0; }
+.gps-dot.active { background:#4ade80; animation:pulse 1.5s infinite; }
+.gps-dot.error { background:var(--danger); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ===== GPS PANEL (map bottom drawer) ===== */
+.gps-panel {
+  background:#0a0a0a; color:#00ff41; font-family:var(--mono);
+  flex-shrink:0; border-top:2px solid #00ff41;
+  transition:max-height .35s cubic-bezier(.4,0,.2,1); overflow:hidden;
+  max-height:46px;
+}
+.gps-panel.expanded { max-height:420px; }
+.gps-panel-toggle {
+  display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer;
+  border:none; background:none; width:100%; color:#00ff41; font-family:var(--mono);
+}
+.gps-panel-toggle .dot-live { width:8px; height:8px; border-radius:50%; background:#aaa; flex-shrink:0; }
+.gps-panel-toggle .dot-live.on { background:#00ff41; animation:pulse 1.2s infinite; }
+.gps-panel-toggle .dot-live.err { background:#ff4141; }
+.gps-panel-toggle .label { font-size:12px; font-weight:500; flex:1; text-align:left; }
+.gps-panel-toggle .coords-mini { font-size:10px; color:rgba(0,255,65,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+.gps-panel-toggle .arrow { font-size:14px; transition:transform .3s; }
+.gps-panel.expanded .arrow { transform:rotate(180deg); }
+
+.gps-panel-body { padding:0 14px 14px; }
+
+/* Coordinate cards grid */
+.coord-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;
+}
+.coord-card {
+  background:#111; border:1px solid #00ff4133; border-radius:8px; padding:10px 12px;
+}
+.coord-card .cc-label { font-size:9px; color:rgba(0,255,65,.5); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+.coord-card .cc-val { font-size:13px; color:#00ff41; font-weight:500; word-break:break-all; line-height:1.3; }
+.coord-card .cc-val.big { font-size:15px; }
+.coord-card.full { grid-column:1/-1; }
+.coord-card.warn .cc-val { color:#ffcc00; }
+.coord-card.danger .cc-val { color:#ff4141; }
+
+/* Accuracy bar */
+.acc-bar { height:4px; background:#1a1a1a; border-radius:2px; margin-top:6px; overflow:hidden; }
+.acc-fill { height:100%; border-radius:2px; transition:width .5s, background .5s; }
+
+/* ===== COMPASS / GOTO PANEL ===== */
+.compass-panel {
+  background:#0d1a0d; border:1px solid #00ff4133; border-radius:10px;
+  padding:12px; margin-top:8px; display:none;
+}
+.compass-panel.active { display:block; }
+.compass-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.compass-header h4 { color:#00ff41; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+.compass-header .target-name { color:rgba(0,255,65,.6); font-size:10px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.btn-close-compass { background:none; border:1px solid #ff414133; color:#ff4141; padding:4px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-family:var(--mono); }
+
+/* Compass rose */
+.compass-wrap { display:flex; align-items:center; gap:16px; }
+.compass-rose-container { position:relative; width:100px; height:100px; flex-shrink:0; }
+.compass-ring {
+  width:100px; height:100px; border-radius:50%;
+  border:2px solid #00ff4155; background:radial-gradient(circle, #0d1a0d 60%, #0a0a0a 100%);
+  position:relative; display:flex; align-items:center; justify-content:center;
+}
+/* Cardinal marks */
+.compass-ring::before {
+  content:'N'; position:absolute; top:4px; left:50%; transform:translateX(-50%);
+  color:#ff4141; font-size:10px; font-weight:700;
+}
+.compass-ring::after {
+  content:''; position:absolute; inset:4px; border-radius:50%;
+  border:1px dashed #00ff4122;
+}
+.compass-needle {
+  position:absolute; width:4px; height:44px; left:50%; top:50%;
+  transform-origin:bottom center; transform:translateX(-50%) translateY(-100%) rotate(0deg);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  pointer-events:none;
+}
+.needle-north { position:absolute; top:0; left:0; right:0; height:50%; background:linear-gradient(to top,#ff4141,#ff6b6b); border-radius:2px 2px 0 0; }
+.needle-south { position:absolute; bottom:0; left:0; right:0; height:50%; background:linear-gradient(to bottom,#00ff41,#008822); border-radius:0 0 2px 2px; }
+.compass-center { position:absolute; width:10px; height:10px; background:#00ff41; border-radius:50%; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2; box-shadow:0 0 8px #00ff41; }
+
+/* Direction arrow (to target) */
+.target-arrow {
+  position:absolute; width:3px; height:38px; left:50%; top:50%;
+  transform-origin:bottom center; transform:translateX(-50%) translateY(-100%) rotate(0deg);
+  pointer-events:none; transition:transform .3s;
+}
+.target-arrow-body { position:absolute; top:0; left:0; right:0; bottom:8px; background:#ffcc00; border-radius:1.5px; }
+.target-arrow-tip { position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-bottom:8px solid #ffcc00; }
+
+/* Nav stats */
+.nav-stats { flex:1; display:flex; flex-direction:column; gap:8px; }
+.nav-stat { background:#111; border:1px solid #00ff4122; border-radius:8px; padding:8px 12px; }
+.nav-stat .ns-label { font-size:9px; color:rgba(0,255,65,.5); text-transform:uppercase; letter-spacing:1px; }
+.nav-stat .ns-val { font-size:18px; color:#ffcc00; font-weight:700; margin-top:2px; }
+.nav-stat .ns-unit { font-size:10px; color:rgba(255,204,0,.6); }
+
+/* Progress arc to target */
+.dist-arc-wrap { text-align:center; margin-top:8px; }
+.dist-progress-bar { height:6px; background:#1a1a1a; border-radius:3px; overflow:hidden; margin-top:6px; }
+.dist-progress-fill { height:100%; background:linear-gradient(90deg, #00ff41, #ffcc00); border-radius:3px; transition:width .5s; }
+
+/* Nearby sites list */
+.nearby-list { margin-top:10px; max-height:140px; overflow-y:auto; }
+.nearby-item {
+  display:flex; align-items:center; gap:10px; padding:8px 10px;
+  background:#111; border:1px solid #00ff4122; border-radius:8px; margin-bottom:6px; cursor:pointer;
+  transition:border-color .2s;
+}
+.nearby-item:active { border-color:#ffcc00; }
+.nearby-item .ni-icon { color:#00ff41; font-size:16px; flex-shrink:0; }
+.nearby-item .ni-name { flex:1; color:#00ff41; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nearby-item .ni-dist { color:#ffcc00; font-size:11px; font-weight:700; flex-shrink:0; }
+.nearby-item .ni-bearing { color:rgba(0,255,65,.5); font-size:9px; flex-shrink:0; }
+.nearby-item.in-range { border-color:#00ff4155; }
+.nearby-item.navigating { border-color:#ffcc00; background:#1a1200; }
+
+/* Goto button */
+.btn-goto {
+  background:#003300; border:1px solid #00ff41; color:#00ff41;
+  padding:6px 12px; border-radius:6px; font-size:10px; font-family:var(--mono);
+  cursor:pointer; white-space:nowrap;
+}
+.btn-goto.active { background:#ffcc00; color:#000; border-color:#ffcc00; }
+
+/* Cardinal text */
+.cardinal-texts { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-top:4px; font-size:9px; }
+.cardinal-texts span { text-align:center; color:rgba(0,255,65,.4); }
+
+/* Site popup */
+.site-popup { min-width:180px; }
+.site-popup h3 { font-weight:700; color:var(--pine); margin-bottom:6px; }
+.site-popup p { font-size:12px; color:#666; margin-bottom:4px; }
+.site-popup .btn-open {
+  background:var(--pine); color:var(--white); border:none; padding:8px 14px;
+  border-radius:8px; width:100%; cursor:pointer; font-family:var(--font);
+  font-weight:600; margin-top:8px; font-size:13px;
+}
+
+/* ===== SITE LIST ===== */
+#list-view { flex:1; overflow-y:auto; padding:12px; }
+.site-card {
+  background:var(--white); border-radius:var(--radius); padding:14px; margin-bottom:10px;
+  display:flex; align-items:center; gap:12px; cursor:pointer;
+  box-shadow:0 1px 4px rgba(0,0,0,.08); border:1.5px solid transparent;
+  transition:border-color .2s, box-shadow .2s;
+}
+.site-card:active { border-color:var(--pine-light); box-shadow:0 2px 8px rgba(0,0,0,.15); }
+.site-icon {
+  width:44px; height:44px; border-radius:10px; background:var(--pine);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.site-icon svg { width:22px; height:22px; fill:var(--white); }
+.site-info { flex:1; min-width:0; }
+.site-info h3 { font-size:14px; font-weight:600; color:var(--pine); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.site-info p { font-size:11px; color:#888; margin-top:2px; }
+.site-status { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.badge { padding:3px 8px; border-radius:12px; font-size:10px; font-weight:600; }
+.badge-done { background:#dcfce7; color:#166534; }
+.badge-partial { background:#fef9c3; color:#854d0e; }
+.badge-pending { background:#f3f4f6; color:#6b7280; }
+.dist-txt { font-size:10px; color:#aaa; font-family:var(--mono); }
+
+/* ===== FORM VIEW ===== */
+#form-view { flex:1; overflow-y:auto; }
+.module-tabs {
+  display:flex; background:var(--pine); padding:0 8px; flex-shrink:0; overflow-x:auto;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+.module-tabs::-webkit-scrollbar { display:none; }
+.tab-btn {
+  background:none; border:none; color:rgba(255,255,255,.5); padding:12px 14px;
+  font-family:var(--font); font-size:12px; cursor:pointer; white-space:nowrap;
+  border-bottom:2px solid transparent; transition:all .2s;
+}
+.tab-btn.active { color:var(--gold); border-bottom-color:var(--gold); }
+
+.form-module { padding:12px; display:none; }
+.form-module.active { display:block; }
+
+.section-header {
+  background:var(--pine); color:var(--white); padding:10px 14px; border-radius:var(--radius-sm);
+  font-size:13px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px;
+}
+.section-header svg { width:16px; height:16px; fill:var(--gold); }
+
+.field-group { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+.field-group.three { grid-template-columns:1fr 1fr 1fr; }
+.field-group.full { grid-template-columns:1fr; }
+
+.field { display:flex; flex-direction:column; gap:4px; }
+.field label { font-size:11px; font-weight:600; color:#555; text-transform:uppercase; letter-spacing:.5px; }
+.field input, .field select, .field textarea {
+  background:var(--white); border:1.5px solid #d1d5db; border-radius:var(--radius-sm);
+  padding:10px 12px; font-family:var(--font); font-size:14px; color:#1f2937;
+  transition:border-color .2s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline:none; border-color:var(--pine-light); box-shadow:0 0 0 3px rgba(74,138,74,.1);
+}
+.field textarea { resize:none; min-height:80px; }
+.field select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23666' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; background-size:18px; padding-right:32px; }
+
+/* Tree table */
+.tree-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:12px; }
+.tree-table { width:100%; border-collapse:collapse; font-size:12px; }
+.tree-table th { background:var(--pine); color:var(--white); padding:8px 6px; text-align:center; font-weight:600; white-space:nowrap; font-size:11px; }
+.tree-table td { border-bottom:1px solid #e5e7eb; padding:4px 3px; }
+.tree-table tr:nth-child(even) td { background:#f9fafb; }
+.tree-table input, .tree-table select {
+  border:1px solid #e5e7eb; border-radius:4px; padding:5px 4px; width:100%;
+  font-family:var(--font); font-size:12px; background:var(--white); text-align:center;
+  min-width:48px;
+}
+.tree-table input:focus { outline:none; border-color:var(--pine-light); background:#f0fff0; }
+.tree-table .row-num { color:#aaa; font-family:var(--mono); font-size:11px; text-align:center; padding:4px 6px; }
+
+.btn-add-row {
+  background:var(--pine-mid); color:var(--white); border:none; padding:10px 16px;
+  border-radius:var(--radius-sm); font-family:var(--font); font-size:13px; cursor:pointer;
+  display:flex; align-items:center; gap:6px; width:100%; justify-content:center; margin-bottom:12px;
+}
+.btn-add-row:active { background:var(--pine); }
+
+/* Increment radii */
+.radii-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:8px; }
+.radii-grid input { border:1.5px solid #d1d5db; border-radius:6px; padding:8px 4px; text-align:center; font-family:var(--mono); font-size:13px; }
+
+/* Combustibles */
+.comb-section { background:var(--white); border-radius:var(--radius-sm); padding:12px; margin-bottom:10px; border:1.5px solid #e5e7eb; }
+.comb-section h4 { font-size:12px; font-weight:700; color:var(--pine); margin-bottom:8px; text-transform:uppercase; }
+.comb-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.comb-gruesos-table { width:100%; border-collapse:collapse; font-size:12px; }
+.comb-gruesos-table th, .comb-gruesos-table td { border:1px solid #e5e7eb; padding:6px 8px; text-align:center; }
+.comb-gruesos-table th { background:var(--pine); color:var(--white); font-size:11px; }
+.comb-gruesos-table input { border:none; width:100%; text-align:center; font-family:var(--mono); font-size:12px; background:transparent; }
+
+/* ===== SAVE / EXPORT ===== */
+.action-bar {
+  background:var(--white); padding:12px 16px; border-top:1px solid #e5e7eb;
+  display:flex; gap:10px; flex-shrink:0; box-shadow:0 -2px 8px rgba(0,0,0,.06);
+}
+.btn-save {
+  flex:1; background:var(--pine); color:var(--white); border:none; padding:14px;
+  border-radius:var(--radius-sm); font-family:var(--font); font-weight:700; font-size:15px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.btn-save:active { background:var(--pine-mid); }
+.btn-export {
+  background:var(--gold); color:var(--pine); border:none; padding:14px 18px;
+  border-radius:var(--radius-sm); font-family:var(--font); font-weight:700; font-size:13px;
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+}
+.btn-export:active { filter:brightness(.9); }
+
+/* ===== SYNC STATUS ===== */
+.sync-bar {
+  background:var(--moss); color:var(--white); padding:6px 16px;
+  font-size:11px; display:flex; align-items:center; gap:8px; flex-shrink:0;
+}
+.sync-bar.offline { background:var(--clay); }
+.sync-bar.syncing { background:var(--sky); }
+.sync-dot { width:6px; height:6px; border-radius:50%; background:var(--white); }
+
+/* ===== TOAST ===== */
+.toast {
+  position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--pine); color:var(--white); padding:10px 18px; border-radius:20px;
+  font-size:13px; font-weight:500; z-index:9999; opacity:0; transition:all .3s;
+  white-space:nowrap; box-shadow:0 4px 16px rgba(0,0,0,.3);
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+.toast.error { background:var(--danger); }
+.toast.success { background:#166534; }
+
+/* ===== PROGRESS RING ===== */
+.progress-ring { width:36px; height:36px; }
+.progress-ring circle { fill:none; stroke:#e5e7eb; stroke-width:3; }
+.progress-ring .progress { stroke:var(--pine-light); stroke-linecap:round; transition:stroke-dashoffset .5s; }
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:800;
+  display:flex; align-items:flex-end; justify-content:center;
+}
+.modal-sheet {
+  background:var(--white); border-radius:20px 20px 0 0; padding:20px;
+  width:100%; max-width:480px; max-height:80vh; overflow-y:auto;
+}
+.modal-handle { width:40px; height:4px; background:#e5e7eb; border-radius:2px; margin:0 auto 16px; }
+
+/* ===== DASHBOARD ===== */
+#dashboard { flex:1; overflow-y:auto; padding:16px; }
+.dash-hero {
+  background:linear-gradient(135deg, var(--pine) 0%, var(--pine-mid) 100%);
+  border-radius:var(--radius); padding:20px; color:var(--white); margin-bottom:16px;
+  position:relative; overflow:hidden;
+}
+.dash-hero::before {
+  content:''; position:absolute; top:-40px; right:-40px; width:160px; height:160px;
+  border-radius:50%; background:rgba(255,255,255,.05);
+}
+.dash-hero h2 { font-size:22px; font-weight:700; margin-bottom:4px; }
+.dash-hero p { font-size:13px; color:rgba(255,255,255,.7); }
+.dash-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:16px; }
+.stat-item { background:rgba(255,255,255,.1); border-radius:10px; padding:10px; text-align:center; }
+.stat-item .num { font-size:22px; font-weight:700; color:var(--gold); font-family:var(--mono); }
+.stat-item .lbl { font-size:10px; color:rgba(255,255,255,.7); margin-top:2px; }
+
+.quick-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.qa-btn {
+  background:var(--white); border:none; border-radius:var(--radius); padding:16px;
+  text-align:left; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.08);
+  transition:transform .15s; display:flex; flex-direction:column; gap:8px;
+}
+.qa-btn:active { transform:scale(.97); }
+.qa-btn .qa-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+.qa-btn h3 { font-size:13px; font-weight:600; color:var(--pine); }
+.qa-btn p { font-size:11px; color:#888; }
+
+.recent-section h3 { font-size:14px; font-weight:700; color:var(--pine); margin-bottom:10px; }
+
+/* ===== NAV BAR ===== */
+.nav-bar {
+  background:var(--white); border-top:1px solid #e5e7eb;
+  display:flex; padding:6px 0 8px; flex-shrink:0;
+}
+.nav-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; cursor:pointer; padding:4px; }
+.nav-item svg { width:22px; height:22px; fill:#9ca3af; transition:fill .2s; }
+.nav-item span { font-size:10px; color:#9ca3af; font-family:var(--font); transition:color .2s; }
+.nav-item.active svg { fill:var(--pine); }
+.nav-item.active span { color:var(--pine); font-weight:600; }
+
+/* ===== PHOTO MODULE ===== */
+.photo-card {
+  background:white; border-radius:14px; margin-bottom:14px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08); overflow:hidden;
+}
+.photo-card-header {
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  color:white;
+}
+.photo-card-header.north  { background:linear-gradient(135deg,#1565c0,#1976d2); }
+.photo-card-header.south  { background:linear-gradient(135deg,#c62828,#d32f2f); }
+.photo-card-header.east   { background:linear-gradient(135deg,#2e7d32,#388e3c); }
+.photo-card-header.west   { background:linear-gradient(135deg,#e65100,#f57c00); }
+
+.pcard-compass {
+  width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,.2);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:18px; font-weight:900; flex-shrink:0;
+  border:2px solid rgba(255,255,255,.4);
+}
+.pcard-title  { font-size:15px; font-weight:700; }
+.pcard-sub    { font-size:11px; opacity:.75; margin-top:2px; }
+.pcard-status { margin-left:auto; font-size:11px; background:rgba(255,255,255,.2); padding:4px 10px; border-radius:20px; white-space:nowrap; }
+.pcard-status.done { background:rgba(255,255,255,.35); font-weight:700; }
+
+.photo-preview-wrap {
+  position:relative; background:#111; min-height:180px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  overflow:hidden;
+}
+.photo-placeholder {
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  color:rgba(255,255,255,.4); font-size:12px; padding:30px;
+}
+.photo-preview {
+  width:100%; height:200px; object-fit:cover; display:block;
+  transition:transform .2s;
+}
+.photo-preview:active { transform:scale(.98); }
+
+.photo-card-actions {
+  display:flex; gap:8px; padding:10px 12px; background:#f9fafb;
+  border-top:1px solid #f0f0f0;
+}
+.btn-photo-take {
+  flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+  background:var(--pine); color:white; border:none; border-radius:8px;
+  padding:10px 8px; font-family:var(--font); font-size:12px; font-weight:600;
+  cursor:pointer; transition:filter .2s;
+}
+.btn-photo-take:active { filter:brightness(.85); }
+.btn-photo-gallery {
+  flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
+  background:var(--cream); color:var(--pine); border:1.5px solid #d1d5db;
+  border-radius:8px; padding:10px 8px; font-family:var(--font); font-size:12px;
+  font-weight:600; cursor:pointer; transition:filter .2s;
+}
+.btn-photo-gallery:active { filter:brightness(.92); }
+.btn-photo-delete {
+  background:#fee2e2; color:#dc2626; border:1.5px solid #fca5a5;
+  border-radius:8px; padding:10px 12px; cursor:pointer; display:flex;
+  align-items:center; justify-content:center; transition:background .2s;
+}
+.btn-photo-delete:active { background:#fca5a5; }
+
+.photo-meta {
+  padding:0 14px 10px; font-size:10px; color:#9ca3af;
+  font-family:var(--mono); line-height:1.6;
+  border-top:1px solid #f3f4f6; display:none;
+}
+.photo-meta.visible { display:block; }
+
+/* Photo lightbox */
+#photo-lightbox { display:none; }
+#photo-lightbox.open { display:flex !important; }
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <svg class="logo" viewBox="0 0 80 80" fill="none">
+    <circle cx="40" cy="40" r="38" fill="rgba(212,168,67,.15)" stroke="#d4a843" stroke-width="1.5"/>
+    <path d="M40 12 L54 52 H26 Z" fill="#4a8a4a"/>
+    <path d="M40 22 L50 48 H30 Z" fill="#2d5a2d"/>
+    <rect x="36" y="52" width="8" height="12" rx="2" fill="#5c3d2e"/>
+    <path d="M28 36 L40 18 L52 36" fill="none" stroke="#d4a843" stroke-width="1" opacity=".6"/>
+  </svg>
+  <h1>Jesus Maria Tosibuena</h1>
+  <p>Inventario Forestal · Bosque Templado · v2.0</p>
+  <div class="loading-bar"><div class="loading-fill"></div></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="app-hidden">
+
+  <!-- SYNC BAR -->
+  <div class="sync-bar" id="sync-bar">
+    <div class="sync-dot"></div>
+    <span id="sync-text">Sin conexión · Datos guardados localmente</span>
+  </div>
+
+  <!-- ===== DASHBOARD ===== -->
+  <div id="dashboard" class="app-hidden">
+    <div class="dash-hero">
+      <h2>Bienvenido</h2>
+      <p>Sistema de Inventario Forestal Norte de México</p>
+      <div class="dash-stats">
+        <div class="stat-item"><div class="num" id="stat-total">0</div><div class="lbl">Sitios</div></div>
+        <div class="stat-item"><div class="num" id="stat-done">0</div><div class="lbl">Completos</div></div>
+        <div class="stat-item"><div class="num" id="stat-trees">0</div><div class="lbl">Árboles</div></div>
+        <div class="stat-item"><div class="num" id="stat-photos">0</div><div class="lbl">Fotos</div></div>
+        <div class="stat-item"><div class="num" id="stat-sync">0</div><div class="lbl">Sincron.</div></div>
+      </div>
+    </div>
+    <div class="quick-actions">
+      <button class="qa-btn" onclick="App.showView('map')">
+        <div class="qa-icon" style="background:#e8f5e9"><svg viewBox="0 0 24 24" fill="#2d5a2d"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg></div>
+        <h3>Mapa de Sitios</h3>
+        <p>GPS · Navegar</p>
+      </button>
+      <button class="qa-btn" onclick="App.showView('list')">
+        <div class="qa-icon" style="background:#e3f2fd"><svg viewBox="0 0 24 24" fill="#1565c0"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></div>
+        <h3>Lista de Sitios</h3>
+        <p>Ver todos</p>
+      </button>
+      <button class="qa-btn" onclick="App.exportAll()">
+        <div class="qa-icon" style="background:#fff8e1"><svg viewBox="0 0 24 24" fill="#e65100"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg></div>
+        <h3>Exportar Excel</h3>
+        <p>Todos los datos</p>
+      </button>
+      <button class="qa-btn" onclick="App.showView('photos')">
+        <div class="qa-icon" style="background:#fce4ec"><svg viewBox="0 0 24 24" fill="#c62828"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg></div>
+        <h3>Fotografías</h3>
+        <p>4 puntos cardinales</p>
+      </button>
+      <button class="qa-btn" onclick="App.syncToSupabase()">
+        <div class="qa-icon" style="background:#f3e5f5"><svg viewBox="0 0 24 24" fill="#6a1b9a"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93s3.05-7.44 7-7.93v15.86zm2 0V4.07c3.94.49 7 3.85 7 7.93s-3.05 7.44-7 7.93z"/></svg></div>
+        <h3>Sincronizar</h3>
+        <p>Subir a nube</p>
+      </button>
+      <button class="qa-btn" onclick="App.openSupabaseConfig()">
+        <div class="qa-icon" style="background:#e8eaf6"><svg viewBox="0 0 24 24" fill="#3949ab"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
+        <h3>Configurar BD</h3>
+        <p>Supabase URL+Key</p>
+      </button>
+    </div>
+    <div class="recent-section">
+      <h3>Sitios Recientes</h3>
+      <div id="recent-list"></div>
+    </div>
+  </div>
+
+  <!-- ===== MAP VIEW ===== -->
+  <div id="map-view" class="app-hidden">
+    <div class="header">
+      <button class="header-back" onclick="App.showView('dashboard')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="header-title"><h2>Mapa de Sitios</h2><span id="map-site-count">0 sitios cargados</span></div>
+      <div class="header-actions">
+        <label class="header-btn">
+          <svg viewBox="0 0 24 24" fill="white"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+          KML
+          <input type="file" accept=".kml" style="display:none" onchange="App.loadKML(this)">
+        </label>
+        <label class="header-btn">
+          <svg viewBox="0 0 24 24" fill="white"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+          MBTiles
+          <input type="file" accept=".mbtiles,.sqlite" style="display:none" onchange="App.loadMBTiles(this)">
+        </label>
+      </div>
+    </div>
+    <!-- MAP TOOLBAR -->
+    <div class="map-toolbar">
+      <select id="map-filter" onchange="App.filterSites(this.value)">
+        <option value="all">Todos los sitios</option>
+        <option value="pending">Pendientes</option>
+        <option value="partial">En proceso</option>
+        <option value="done">Completos</option>
+      </select>
+      <button class="btn-locate" onclick="GPS.startTracking()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+        GPS Live
+      </button>
+    </div>
+
+    <!-- MAP CANVAS -->
+    <div style="flex:1;position:relative;overflow:hidden;">
+      <div id="map" style="position:absolute;inset:0;"></div>
+
+      <!-- Floating accuracy ring on map -->
+      <div id="map-gps-float" style="position:absolute;top:10px;right:10px;z-index:500;background:rgba(0,0,0,.75);color:#00ff41;font-family:'JetBrains Mono',monospace;font-size:10px;padding:6px 10px;border-radius:8px;border:1px solid #00ff4155;display:none;backdrop-filter:blur(4px);">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div id="map-gps-dot" style="width:7px;height:7px;border-radius:50%;background:#aaa;flex-shrink:0;"></div>
+          <span id="map-gps-acc">GPS —</span>
+        </div>
+      </div>
+
+      <!-- Nearby sites badge -->
+      <div id="nearby-badge" style="position:absolute;bottom:10px;left:10px;z-index:500;background:rgba(0,0,0,.8);color:#ffcc00;font-family:'JetBrains Mono',monospace;font-size:10px;padding:6px 10px;border-radius:8px;border:1px solid #ffcc0055;display:none;cursor:pointer;backdrop-filter:blur(4px);" onclick="GPS.togglePanel()">
+        📍 <span id="nearby-count">0</span> sitios cercanos ▲
+      </div>
+    </div>
+
+    <!-- ===== GPS PANEL (drawer) ===== -->
+    <div class="gps-panel" id="gps-panel">
+      <button class="gps-panel-toggle" onclick="GPS.togglePanel()">
+        <div class="dot-live" id="gps-dot-panel"></div>
+        <span class="label">📡 Localización GPS en Tiempo Real</span>
+        <span class="coords-mini" id="gps-coords-mini">Iniciando GPS...</span>
+        <span class="arrow">▲</span>
+      </button>
+
+      <div class="gps-panel-body">
+        <!-- COORDINATE GRID -->
+        <div class="coord-grid">
+          <!-- Geographic -->
+          <div class="coord-card">
+            <div class="cc-label">Latitud (WGS84)</div>
+            <div class="cc-val big" id="gps-lat">--</div>
+          </div>
+          <div class="coord-card">
+            <div class="cc-label">Longitud (WGS84)</div>
+            <div class="cc-val big" id="gps-lng">--</div>
+          </div>
+          <!-- GMS -->
+          <div class="coord-card">
+            <div class="cc-label">Latitud GMS</div>
+            <div class="cc-val" id="gps-lat-gms">--</div>
+          </div>
+          <div class="coord-card">
+            <div class="cc-label">Longitud GMS</div>
+            <div class="cc-val" id="gps-lng-gms">--</div>
+          </div>
+          <!-- UTM -->
+          <div class="coord-card">
+            <div class="cc-label">UTM X (Zona 13N)</div>
+            <div class="cc-val big" id="gps-utmx">--</div>
+          </div>
+          <div class="coord-card">
+            <div class="cc-label">UTM Y (Zona 13N)</div>
+            <div class="cc-val big" id="gps-utmy">--</div>
+          </div>
+          <!-- Altitude + Accuracy -->
+          <div class="coord-card" id="gps-alt-card">
+            <div class="cc-label">Altitud (MSNM)</div>
+            <div class="cc-val big" id="gps-alt">--</div>
+          </div>
+          <div class="coord-card" id="gps-acc-card">
+            <div class="cc-label">Precisión (metros)</div>
+            <div class="cc-val big" id="gps-acc">--</div>
+            <div class="acc-bar"><div class="acc-fill" id="gps-acc-bar" style="width:0%;background:#4ade80"></div></div>
+          </div>
+        </div>
+
+        <!-- NEARBY SITES + COMPASS -->
+        <div id="nearby-sites-list" class="nearby-list">
+          <div style="text-align:center;color:rgba(0,255,65,.4);font-size:11px;padding:10px;">
+            Activa GPS para ver sitios cercanos
+          </div>
+        </div>
+
+        <!-- COMPASS / GOTO PANEL -->
+        <div class="compass-panel" id="compass-panel">
+          <div class="compass-header">
+            <div>
+              <h4>🧭 Navegar a Sitio</h4>
+              <div class="target-name" id="compass-target-name">—</div>
+            </div>
+            <button class="btn-close-compass" onclick="GPS.stopNavigation()">✕ Cerrar</button>
+          </div>
+          <div class="compass-wrap">
+            <!-- COMPASS ROSE -->
+            <div class="compass-rose-container">
+              <div class="compass-ring">
+                <!-- Cardinal points -->
+                <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);color:#00ff4177;font-size:9px;font-family:'JetBrains Mono',monospace;">S</div>
+                <div style="position:absolute;left:4px;top:50%;transform:translateY(-50%);color:#00ff4177;font-size:9px;font-family:'JetBrains Mono',monospace;">O</div>
+                <div style="position:absolute;right:4px;top:50%;transform:translateY(-50%);color:#00ff4177;font-size:9px;font-family:'JetBrains Mono',monospace;">E</div>
+                <!-- Target arrow (yellow, to site) -->
+                <div class="target-arrow" id="target-arrow">
+                  <div class="target-arrow-tip"></div>
+                  <div class="target-arrow-body"></div>
+                </div>
+                <!-- North needle (device orientation) -->
+                <div class="compass-needle" id="compass-needle">
+                  <div class="needle-north"></div>
+                  <div class="needle-south"></div>
+                </div>
+                <div class="compass-center"></div>
+              </div>
+            </div>
+
+            <!-- NAV STATS -->
+            <div class="nav-stats">
+              <div class="nav-stat">
+                <div class="ns-label">Distancia al sitio</div>
+                <div class="ns-val" id="nav-dist">---</div>
+                <div class="ns-unit" id="nav-dist-unit">metros</div>
+              </div>
+              <div class="nav-stat">
+                <div class="ns-label">Rumbo magnético</div>
+                <div class="ns-val" id="nav-bearing">---</div>
+                <div class="ns-unit">grados · <span id="nav-cardinal">—</span></div>
+              </div>
+              <div class="nav-stat">
+                <div class="ns-label">Rumbo relativo</div>
+                <div class="ns-val" id="nav-relative">---</div>
+                <div class="ns-unit">desde mi posición</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress bar (distance to target) -->
+          <div class="dist-arc-wrap" id="dist-progress-wrap">
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(0,255,65,.4);margin-top:8px">
+              <span>0 m</span><span id="nav-orig-dist">-- m</span>
+            </div>
+            <div class="dist-progress-bar">
+              <div class="dist-progress-fill" id="dist-progress-fill" style="width:100%"></div>
+            </div>
+            <div style="text-align:right;font-size:9px;color:#ffcc00;margin-top:3px" id="nav-arrived">Navegando...</div>
+          </div>
+        </div>
+
+        <!-- BOTTOM ACTIONS -->
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button onclick="GPS.centerMap()" style="flex:1;background:#0d1a0d;border:1px solid #00ff4144;color:#00ff41;padding:9px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;">
+            🎯 Centrar mapa
+          </button>
+          <button onclick="GPS.captureToForm()" style="flex:1;background:#0d1a0d;border:1px solid #ffcc0044;color:#ffcc00;padding:9px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;">
+            📋 Usar en formulario
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SITE LIST ===== -->
+  <div id="list-view" class="app-hidden">
+    <div class="header">
+      <button class="header-back" onclick="App.showView('dashboard')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="header-title"><h2>Sitios de Muestreo</h2><span id="list-count">0 sitios</span></div>
+      <div class="header-actions">
+        <button class="header-btn" onclick="App.newSite()">
+          <svg viewBox="0 0 24 24" fill="white"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          Nuevo
+        </button>
+      </div>
+    </div>
+    <div style="padding:10px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+      <input type="search" placeholder="Buscar por sitio, predio, paraje..." 
+        style="width:100%;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-family:var(--font);font-size:14px;background:white"
+        oninput="App.searchSites(this.value)">
+    </div>
+    <div id="site-list" style="overflow-y:auto;flex:1;"></div>
+  </div>
+
+  <!-- ===== FORM VIEW ===== -->
+  <div id="form-view" class="app-hidden" style="display:flex;flex-direction:column;">
+    <div class="header">
+      <button class="header-back" onclick="App.showView('list')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="header-title">
+        <h2 id="form-site-title">Sitio</h2>
+        <span id="form-site-subtitle">Inventario forestal</span>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" onclick="App.exportSite()">
+          <svg viewBox="0 0 24 24" fill="white"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+          XLS
+        </button>
+      </div>
+    </div>
+
+    <!-- MODULE TABS -->
+    <div class="module-tabs">
+      <button class="tab-btn active" onclick="App.showModule(0,this)">I. Control</button>
+      <button class="tab-btn" onclick="App.showModule(1,this)">II. Arbolado</button>
+      <button class="tab-btn" onclick="App.showModule(2,this)">III. Estructura</button>
+      <button class="tab-btn" onclick="App.showModule(3,this)">IV. Incremento</button>
+      <button class="tab-btn" onclick="App.showModule(4,this)">V. Regeneración</button>
+      <button class="tab-btn" onclick="App.showModule(5,this)">VI. Combustibles</button>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;">
+
+    <!-- MODULE I: CONTROL -->
+    <div class="form-module active" id="mod-0">
+      <div class="section-header">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93s3.05-7.44 7-7.93v15.86zm2 0V4.07c3.94.49 7 3.85 7 7.93s-3.05 7.44-7 7.93z"/></svg>
+        I. Información de Control, Ecológica y Silvícola
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(1) UMAFOR</label><input type="text" id="f01_umafor" placeholder="1008" maxlength="4"></div>
+        <div class="field"><label>(3) Unidad Manejo</label><input type="text" id="f01_um" placeholder="0002001" maxlength="7"></div>
+      </div>
+      <div class="field-group full"><div class="field"><label>(2) Predio</label><input type="text" id="f01_predio" placeholder="Ejido Borbollones"></div></div>
+      <div class="field-group three">
+        <div class="field"><label>(4) Núm. Sitio</label><input type="number" id="f01_sitio" placeholder="184"></div>
+        <div class="field"><label>(5) Sitio i</label><input type="number" id="f01_sitio_i" placeholder="4"></div>
+        <div class="field"><label>(6) De</label><input type="number" id="f01_sitio_de" placeholder="11"></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(7) Tamaño (m²)</label>
+          <select id="f01_tam"><option value="500">500 m²</option><option value="1000" selected>1,000 m²</option><option value="1500">1,500 m²</option></select>
+        </div>
+        <div class="field"><label>(8) Fecha</label><input type="date" id="f01_fecha"></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(9) Brigada</label><input type="number" id="f01_brig" placeholder="9" min="1" max="99"></div>
+        <div class="field full"><label>(10) Paraje</label><input type="text" id="f01_paraje" placeholder="La Guajolota"></div>
+      </div>
+      <div class="section-header" style="margin-top:12px">
+        <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+        Ubicación GPS
+      </div>
+      <div class="field-group three">
+        <div class="field"><label>(11) UTM X</label><input type="number" id="f01_utmx" placeholder="0401763"></div>
+        <div class="field"><label>(12) UTM Y</label><input type="number" id="f01_utmy" placeholder="2760312"></div>
+        <div class="field"><label>(13) DATUM</label><input type="text" id="f01_datum" value="WGS84" readonly style="background:#f3f4f6"></div>
+      </div>
+      <div class="field-group three">
+        <div class="field"><label>(14) ASNM (m)</label><input type="number" id="f01_asnm" placeholder="2648"></div>
+        <div class="field"><label>(15) Pend. (%)</label><input type="number" id="f01_pend" placeholder="25" min="0" max="200"></div>
+        <div class="field"><label>(16) Exposición</label>
+          <select id="f01_ex"><option value="">-</option><option value="1">1-Zenital</option><option value="2">2-Norte</option><option value="3">3-NE</option><option value="4">4-Este</option><option value="5">5-SE</option><option value="6">6-Sur</option><option value="7">7-SO</option><option value="8">8-Oeste</option><option value="9">9-NO</option></select>
+        </div>
+      </div>
+      <button class="btn-add-row" style="background:var(--sky);margin-bottom:12px" onclick="App.getGPS()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+        Capturar coordenadas GPS automáticamente
+      </button>
+      <div class="field-group">
+        <div class="field"><label>(17) Compact. suelo</label>
+          <select id="f01_co"><option value="">-</option><option value="1">1-Alta</option><option value="2">2-Media</option><option value="3">3-Baja</option></select>
+        </div>
+        <div class="field"><label>(18) Textura</label>
+          <select id="f01_te"><option value="">-</option><option value="1">1-Limosa</option><option value="2">2-Arenosa</option><option value="3">3-Arcillosa</option><option value="4">4-Limo-arenosa</option><option value="5">5-Limo-arcillosa</option><option value="6">6-Areno-limosa</option><option value="7">7-Areno-arcillosa</option><option value="8">8-Arcillo-limosa</option><option value="9">9-Arcillo-arenosa</option><option value="10">10-Franco</option><option value="11">11-Franco-limosa</option><option value="12">12-Franco-arenosa</option><option value="13">13-Franco-arcillosa</option></select>
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(19) Mat. Predominante</label>
+          <select id="f01_mp"><option value="">-</option><option value="1">1-Suelo</option><option value="2">2-Arena</option><option value="3">3-Grava</option><option value="4">4-Piedra</option><option value="5">5-Roquerío</option><option value="6">6-Laja</option></select>
+        </div>
+        <div class="field"><label>(20) MO (cm)</label><input type="number" id="f01_mo" placeholder="5" min="0"></div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(21) Ocochal (cm)</label><input type="number" id="f01_oc" placeholder="2" min="0"></div>
+        <div class="field"><label>(22) Uso Actual Suelo</label>
+          <select id="f01_uas"><option value="">-</option><option value="1">01-Forestal producción</option><option value="2">02-Forestal protección</option><option value="3">03-Cauces/cuerpos agua</option><option value="4">04-Vías comunicación</option><option value="5">05-Fauna silvestre</option><option value="6">06-Vegetación</option><option value="7">07-Recreación</option><option value="8">08-Suelo</option><option value="9">09-Bajas existencias</option><option value="10">10-Forestal inaccesible</option><option value="11">11-Agricultura</option><option value="12">12-Pastizal</option><option value="13">13-Minería</option><option value="14">14-Vías comunicación</option><option value="15">15-Roquerío</option><option value="16">16-Erosión crítica</option><option value="17">17-Asentamientos humanos</option><option value="18">18-Asentamientos industriales</option><option value="19">19-Investigación</option></select>
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(23) Uso Agrícola</label>
+          <select id="f01_ua"><option value="">-</option><option value="1">1-No presente</option><option value="2">2-Poco</option><option value="3">3-Moderado</option><option value="4">4-Intenso</option></select>
+        </div>
+        <div class="field"><label>(24) Uso Pecuario</label>
+          <select id="f01_up"><option value="">-</option><option value="1">1-No presente</option><option value="2">2-Poco</option><option value="3">3-Moderado</option><option value="4">4-Intenso</option></select>
+        </div>
+      </div>
+      <div class="field-group" style="grid-template-columns:1fr 1fr 1fr 1fr">
+        <div class="field"><label>(25) Erosión Lam.</label>
+          <select id="f01_el"><option value="">-</option><option value="1">1-Sin</option><option value="2">2-1-10%</option><option value="3">3-11-20%</option><option value="4">4-21-30%</option><option value="5">5-31-40%</option><option value="6">6-41-50%</option><option value="7">7-51-60%</option><option value="8">8-61-70%</option><option value="9">9->70%</option></select>
+        </div>
+        <div class="field"><label>(26) Erosión Can.</label>
+          <select id="f01_ec"><option value="">-</option><option value="1">1-Sin</option><option value="2">2-1-10%</option><option value="3">3-11-20%</option><option value="4">4-21-30%</option><option value="5">5-31-40%</option><option value="6">6-41-50%</option><option value="7">7-51-60%</option><option value="8">8-61-70%</option><option value="9">9->70%</option></select>
+        </div>
+        <div class="field"><label>(27) Erosión Cárc.</label>
+          <select id="f01_er"><option value="">-</option><option value="1">1-Sin</option><option value="2">2-1-10%</option><option value="3">3-11-20%</option><option value="4">4-21-30%</option><option value="5">5-31-40%</option><option value="6">6-41-50%</option><option value="7">7-51-60%</option><option value="8">8-61-70%</option><option value="9">9->70%</option></select>
+        </div>
+        <div class="field"><label>(28) Erosión Antrop.</label>
+          <select id="f01_ea"><option value="">-</option><option value="1">1-Sin</option><option value="2">2-1-10%</option><option value="3">3-11-20%</option><option value="4">4-21-30%</option><option value="5">5-31-40%</option><option value="6">6-41-50%</option><option value="7">7-51-60%</option><option value="8">8-61-70%</option><option value="9">9->70%</option></select>
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(29) Accesibilidad</label>
+          <select id="f01_acc"><option value="">-</option><option value="1">1-Buena</option><option value="2">2-Regular</option><option value="3">3-Mala</option></select>
+        </div>
+        <div class="field"><label>(35) Trat. Silvícola</label>
+          <select id="f01_ts"><option value="">-</option><option value="1">1-No corta</option><option value="2">2-Corta selección</option><option value="3">3-Corta regeneración</option><option value="4">4-Liberación+pre-aclareo</option><option value="5">5-1er aclareo</option><option value="6">6-2do aclareo</option><option value="7">7-3er aclareo</option><option value="8">8-4to aclareo</option><option value="9">9-Matarrasa</option><option value="10">10-Corta protección</option></select>
+        </div>
+      </div>
+      <div class="section-header" style="margin-top:4px">Perturbaciones (30)</div>
+      <div class="field-group three">
+        <div class="field"><label>Perturbación 1</label>
+          <select id="f01_per1"><option value="1">01-Sin perturbación</option><option value="2">02-Hongos/enfermedades</option><option value="3">03-Plagas</option><option value="4">04-Clandestinaje</option><option value="5">05-Cinchamiento</option><option value="6">06-Resinación</option><option value="7">07-Incendios</option><option value="8">08-Pastoreo</option><option value="9">09-Ocoteo</option><option value="10">10-Plantas parásitas</option><option value="11">11-Lianas/bejucos</option><option value="12">12-Roedores</option><option value="13">13-Rayos</option><option value="14">14-Viento</option><option value="15">15-Otras</option></select>
+        </div>
+        <div class="field"><label>Perturbación 2</label>
+          <select id="f01_per2"><option value="1">01-Sin perturbación</option><option value="2">02-Hongos/enfermedades</option><option value="3">03-Plagas</option><option value="4">04-Clandestinaje</option><option value="5">05-Cinchamiento</option><option value="6">06-Resinación</option><option value="7">07-Incendios</option><option value="8">08-Pastoreo</option><option value="9">09-Ocoteo</option><option value="10">10-Plantas parásitas</option><option value="11">11-Lianas/bejucos</option><option value="12">12-Roedores</option><option value="13">13-Rayos</option><option value="14">14-Viento</option><option value="15">15-Otras</option></select>
+        </div>
+        <div class="field"><label>Perturbación 3</label>
+          <select id="f01_per3"><option value="1">01-Sin perturbación</option><option value="2">02-Hongos/enfermedades</option><option value="3">03-Plagas</option><option value="4">04-Clandestinaje</option><option value="5">05-Cinchamiento</option><option value="6">06-Resinación</option><option value="7">07-Incendios</option><option value="8">08-Pastoreo</option><option value="9">09-Ocoteo</option><option value="10">10-Plantas parásitas</option><option value="11">11-Lianas/bejucos</option><option value="12">12-Roedores</option><option value="13">13-Rayos</option><option value="14">14-Viento</option><option value="15">15-Otras</option></select>
+        </div>
+      </div>
+      <div class="section-header" style="margin-top:4px">Cobertura y Tratamientos Complementarios</div>
+      <div class="field-group" style="grid-template-columns:1fr 1fr 1fr 1fr">
+        <div class="field"><label>(31) CA %</label><input type="number" id="f01_ca" placeholder="20" min="0" max="100"></div>
+        <div class="field"><label>(32) CH %</label><input type="number" id="f01_ch" placeholder="15" min="0" max="100"></div>
+        <div class="field"><label>(33) CP %</label><input type="number" id="f01_cp" placeholder="15" min="0" max="100"></div>
+        <div class="field"><label>(34) COC %</label><input type="number" id="f01_coc" placeholder="10" min="0" max="100"></div>
+      </div>
+      <div class="field-group three">
+        <div class="field"><label>(36) Trat. Comp. 1</label>
+          <select id="f01_tc1"><option value="">-</option><option value="1">01-Quema controlada</option><option value="2">02-Desbroza/chaponeo</option><option value="3">03-Acordonamiento</option><option value="4">04-Reducción regeneración</option><option value="5">05-Reforestación</option><option value="6">06-Siembra directa</option><option value="7">07-Limpieza regeneración</option><option value="8">08-Restauración suelos</option><option value="9">09-Cortas saneamiento</option><option value="10">10-Control azolves</option><option value="11">11-Brecha cortafuego</option><option value="12">12-Cercado</option><option value="13">13-Podas</option></select>
+        </div>
+        <div class="field"><label>(36) Trat. Comp. 2</label>
+          <select id="f01_tc2"><option value="">-</option><option value="1">01-Quema controlada</option><option value="2">02-Desbroza/chaponeo</option><option value="3">03-Acordonamiento</option><option value="4">04-Reducción regeneración</option><option value="5">05-Reforestación</option><option value="6">06-Siembra directa</option><option value="7">07-Limpieza regeneración</option><option value="8">08-Restauración suelos</option><option value="9">09-Cortas saneamiento</option><option value="10">10-Control azolves</option><option value="11">11-Brecha cortafuego</option><option value="12">12-Cercado</option><option value="13">13-Podas</option></select>
+        </div>
+        <div class="field"><label>(36) Trat. Comp. 3</label>
+          <select id="f01_tc3"><option value="">-</option><option value="1">01-Quema controlada</option><option value="2">02-Desbroza/chaponeo</option><option value="3">03-Acordonamiento</option><option value="4">04-Reducción regeneración</option><option value="5">05-Reforestación</option><option value="6">06-Siembra directa</option><option value="7">07-Limpieza regeneración</option><option value="8">08-Restauración suelos</option><option value="9">09-Cortas saneamiento</option><option value="10">10-Control azolves</option><option value="11">11-Brecha cortafuego</option><option value="12">12-Cercado</option><option value="13">13-Podas</option></select>
+        </div>
+      </div>
+      <div class="field-group full"><div class="field"><label>(37) Observaciones</label><textarea id="f01_obs" rows="3" placeholder="Observaciones del técnico..."></textarea></div></div>
+    </div>
+
+    <!-- MODULE II: ARBOLADO -->
+    <div class="form-module" id="mod-1">
+      <div class="section-header">
+        <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+        II. Información Dasométrica del Arbolado (Dn ≥ 7.5 cm)
+      </div>
+      <p style="font-size:12px;color:#888;margin-bottom:10px">Árbol 1 = centro del sitio. Numeración en sentido horario desde azimut 0.</p>
+      <div class="tree-table-wrap">
+        <table class="tree-table" id="tree-table">
+          <thead>
+            <tr>
+              <th>(38) Árb</th>
+              <th>(39) Esp</th>
+              <th>(40) Do</th>
+              <th>(41) Dn (cm)</th>
+              <th>(42) At (m)</th>
+              <th>(43) Ac (m)</th>
+              <th style="width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="tree-tbody"></tbody>
+        </table>
+      </div>
+      <button class="btn-add-row" onclick="App.addTreeRow()">+ Agregar árbol</button>
+    </div>
+
+    <!-- MODULE III: ESTRUCTURA -->
+    <div class="form-module" id="mod-2">
+      <div class="section-header">
+        <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+        III. Estructura Forestal, Daños Físicos y Sanidad
+      </div>
+      <p style="font-size:12px;color:#888;margin-bottom:10px">Grupo estructural de 5 árboles. Árbol 1=centro, 2-5=vecinos más cercanos en horario.</p>
+      <div id="struct-tbody"></div>
+    </div>
+
+    <!-- MODULE IV: INCREMENTO -->
+    <div class="form-module" id="mod-3">
+      <div class="section-header">
+        <svg viewBox="0 0 24 24"><path d="M23 8c0 1.1-.9 2-2 2-.18 0-.35-.02-.51-.07l-3.56 3.55c.05.16.07.34.07.52 0 1.1-.9 2-2 2s-2-.9-2-2c0-.18.02-.36.07-.52l-2.55-2.55c-.16.05-.34.07-.52.07s-.36-.02-.52-.07l-4.55 4.56c.05.16.07.33.07.51 0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2c.18 0 .35.02.51.07l4.56-4.55C8.02 9.36 8 9.18 8 9c0-1.1.9-2 2-2s2 .9 2 2c0 .18-.02.36-.07.52l2.55 2.55c.16-.05.34-.07.52-.07s.36.02.52.07l3.55-3.56C19.02 8.35 19 8.18 19 8c0-1.1.9-2 2-2s2 .9 2 2z"/></svg>
+        IV. Análisis de Incremento
+      </div>
+      <p style="font-size:12px;color:#888;margin-bottom:10px">Mínimo 3 virutas por sitio: 1 dominante, 1 intermedio, 1 suprimido (solo Pinus).</p>
+      <div id="incr-tbody"></div>
+      <button class="btn-add-row" onclick="App.addIncRow()" style="background:var(--moss)">+ Agregar viruta</button>
+    </div>
+
+    <!-- MODULE V: REGENERACIÓN -->
+    <div class="form-module" id="mod-4">
+      <div class="section-header">
+        <svg viewBox="0 0 24 24"><path d="M6.5 10h-2v7h2v-7zm6 0h-2v7h2v-7zm8.5 9H2v2h19v-2zm-2.5-9h-2v7h2v-7zM11.5 1L2 6v2h19V6l-9.5-5z"/></svg>
+        V. Regeneración Natural
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(81) Tamaño sitio</label><input type="text" value="9 m² (3×3 m)" readonly style="background:#f3f4f6"></div>
+        <div class="field"><label>(82) Distribución</label>
+          <select id="f05_dist"><option value="">-</option><option value="1">1-Uniforme</option><option value="2">2-Aleatoria</option><option value="3">3-Manchones</option></select>
+        </div>
+      </div>
+      <div id="regen-tbody"></div>
+      <button class="btn-add-row" onclick="App.addRegenRow()" style="background:var(--moss)">+ Agregar especie</button>
+    </div>
+
+    <!-- MODULE VI: COMBUSTIBLES -->
+    <div class="form-module" id="mod-5">
+      <div class="section-header">
+        <svg viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>
+        VI. Combustibles Forestales
+      </div>
+      <div class="field-group">
+        <div class="field"><label>(87) Pendiente (%)</label><input type="number" id="f06_pend" placeholder="25" min="0" max="200"></div>
+        <div class="field"><label></label></div>
+      </div>
+      <div class="comb-section">
+        <h4>88. Espesor Hojarasca (cm)</h4>
+        <div class="comb-row">
+          <div class="field"><label>3 m</label><input type="number" id="f06_esp3" min="0" step="0.1"></div>
+          <div class="field"><label>6 m</label><input type="number" id="f06_esp6" min="0" step="0.1"></div>
+          <div class="field"><label>9 m</label><input type="number" id="f06_esp9" min="0" step="0.1"></div>
+        </div>
+      </div>
+      <div class="comb-section">
+        <h4>89. Altura Forma Biológica (cm)</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div>
+            <p style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">ARBUSTOS</p>
+            <div class="field"><label>6 m</label><input type="number" id="f06_ar6" min="0"></div>
+            <div class="field" style="margin-top:6px"><label>9 m</label><input type="number" id="f06_ar9" min="0"></div>
+          </div>
+          <div>
+            <p style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">PASTOS</p>
+            <div class="field"><label>6 m</label><input type="number" id="f06_pa6" min="0"></div>
+            <div class="field" style="margin-top:6px"><label>9 m</label><input type="number" id="f06_pa9" min="0"></div>
+          </div>
+          <div>
+            <p style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">HIERBAS</p>
+            <div class="field"><label>6 m</label><input type="number" id="f06_hi6" min="0"></div>
+            <div class="field" style="margin-top:6px"><label>9 m</label><input type="number" id="f06_hi9" min="0"></div>
+          </div>
+        </div>
+      </div>
+      <div class="comb-section">
+        <h4>90. Cobertura del Dosel (1=Pres. / 0=Aus.)</h4>
+        <div class="comb-row">
+          <div class="field"><label>3 m</label><select id="f06_cob3"><option value="0">0-Ausencia</option><option value="1">1-Presencia</option></select></div>
+          <div class="field"><label>6 m</label><select id="f06_cob6"><option value="0">0-Ausencia</option><option value="1">1-Presencia</option></select></div>
+          <div class="field"><label>9 m</label><select id="f06_cob9"><option value="0">0-Ausencia</option><option value="1">1-Presencia</option></select></div>
+        </div>
+      </div>
+      <div class="comb-section">
+        <h4>91. Combustibles Leñosos Caídos (frecuencia)</h4>
+        <div class="comb-row">
+          <div class="field"><label>Finos (0-0.5cm) 9-12m</label><input type="number" id="f06_cf" min="0" placeholder="5"></div>
+          <div class="field"><label>Regulares (0.51-2.5cm)</label><input type="number" id="f06_cr" min="0" placeholder="6"></div>
+          <div class="field"><label>Medianos (2.51-7.5cm)</label><input type="number" id="f06_cm" min="0" placeholder="2"></div>
+        </div>
+        <div style="margin-top:12px">
+          <p style="font-size:11px;font-weight:700;color:#555;margin-bottom:8px">GRUESOS (>7.5cm) — Diámetro y Grado Descomposición (1-5)</p>
+          <div style="overflow-x:auto">
+            <table class="comb-gruesos-table">
+              <thead><tr><th></th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>P5</th><th>P6</th><th>P7</th><th>P8</th><th>P9</th><th>P10</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight:700;font-size:11px;white-space:nowrap;background:#f3f4f6">Diám (cm)</td>
+                  <td><input type="number" id="f06_gd1" min="0" step="0.1"></td><td><input type="number" id="f06_gd2" min="0" step="0.1"></td>
+                  <td><input type="number" id="f06_gd3" min="0" step="0.1"></td><td><input type="number" id="f06_gd4" min="0" step="0.1"></td>
+                  <td><input type="number" id="f06_gd5" min="0" step="0.1"></td><td><input type="number" id="f06_gd6" min="0" step="0.1"></td>
+                  <td><input type="number" id="f06_gd7" min="0" step="0.1"></td><td><input type="number" id="f06_gd8" min="0" step="0.1"></td>
+                  <td><input type="number" id="f06_gd9" min="0" step="0.1"></td><td><input type="number" id="f06_gd10" min="0" step="0.1"></td>
+                </tr>
+                <tr>
+                  <td style="font-weight:700;font-size:11px;white-space:nowrap;background:#f3f4f6">Grado (1-5)</td>
+                  <td><input type="number" id="f06_gg1" min="1" max="5"></td><td><input type="number" id="f06_gg2" min="1" max="5"></td>
+                  <td><input type="number" id="f06_gg3" min="1" max="5"></td><td><input type="number" id="f06_gg4" min="1" max="5"></td>
+                  <td><input type="number" id="f06_gg5" min="1" max="5"></td><td><input type="number" id="f06_gg6" min="1" max="5"></td>
+                  <td><input type="number" id="f06_gg7" min="1" max="5"></td><td><input type="number" id="f06_gg8" min="1" max="5"></td>
+                  <td><input type="number" id="f06_gg9" min="1" max="5"></td><td><input type="number" id="f06_gg10" min="1" max="5"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- end scrollable -->
+
+    <!-- ACTION BAR -->
+    <div class="action-bar">
+      <button class="btn-save" onclick="App.saveSite()">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+        Guardar Sitio
+      </button>
+      <button class="btn-export" onclick="App.exportSite()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== PHOTO VIEW ===== -->
+  <div id="photo-view" class="app-hidden" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+    <div class="header">
+      <button class="header-back" onclick="App.showView('dashboard')">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="header-title"><h2>Fotografías de Sitio</h2><span id="photo-site-label">Selecciona un sitio</span></div>
+      <div class="header-actions">
+        <button class="header-btn" id="btn-export-zip" onclick="PhotoMod.exportZip()" style="display:none">
+          <svg viewBox="0 0 24 24" fill="white" width="14" height="14"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 8h-3v3h-2v-3h-3l4-4 4 4z"/></svg>
+          ZIP
+        </button>
+      </div>
+    </div>
+
+    <!-- SITE SELECTOR -->
+    <div style="background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:10px 14px;flex-shrink:0;">
+      <select id="photo-site-select" onchange="PhotoMod.selectSite(this.value)"
+        style="width:100%;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:10px;font-family:var(--font);font-size:14px;background:white;color:var(--pine)">
+        <option value="">— Elige un sitio —</option>
+      </select>
+    </div>
+
+    <!-- PHOTO GRID -->
+    <div style="flex:1;overflow-y:auto;padding:16px;background:#f3f4f6;" id="photo-grid-wrap">
+
+      <!-- Empty state -->
+      <div id="photo-empty-state" style="text-align:center;padding:40px 20px;color:#9ca3af;">
+        <svg viewBox="0 0 24 24" width="56" height="56" fill="#d1d5db" style="margin:0 auto 12px"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+        <p style="font-size:14px;font-weight:600;">Selecciona un sitio para tomar fotografías</p>
+        <p style="font-size:12px;margin-top:6px;">4 fotos por sitio · Norte · Sur · Este · Oeste</p>
+      </div>
+
+      <!-- Cardinal photo cards — shown when site is selected -->
+      <div id="photo-cards" style="display:none;">
+
+        <!-- Info bar -->
+        <div style="background:var(--pine);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#d4a843"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          <div>
+            <div style="color:white;font-weight:700;font-size:13px;" id="photo-site-info-name">Sitio —</div>
+            <div style="color:rgba(255,255,255,.6);font-size:11px;" id="photo-site-info-sub">Sin fotos capturadas</div>
+          </div>
+          <div id="photo-count-badge" style="margin-left:auto;background:rgba(255,255,255,.15);color:white;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;">0 / 4</div>
+        </div>
+
+        <!-- NORTH -->
+        <div class="photo-card" id="pcard-N">
+          <div class="photo-card-header north">
+            <div class="pcard-compass">N</div>
+            <div>
+              <div class="pcard-title">Norte</div>
+              <div class="pcard-sub">Vista hacia el Norte (0°)</div>
+            </div>
+            <div class="pcard-status" id="pstat-N">Sin foto</div>
+          </div>
+          <div class="photo-preview-wrap" id="pwrap-N">
+            <div class="photo-placeholder" id="pplaceholder-N">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="rgba(255,255,255,.3)"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              <span>Sin fotografía</span>
+            </div>
+            <img id="pimg-N" class="photo-preview" style="display:none;" alt="Norte">
+          </div>
+          <div class="photo-card-actions">
+            <label class="btn-photo-take">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+              Tomar foto
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="PhotoMod.capturePhoto('N',this)">
+            </label>
+            <label class="btn-photo-gallery">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></svg>
+              Galería
+              <input type="file" accept="image/*" style="display:none" onchange="PhotoMod.capturePhoto('N',this)">
+            </label>
+            <button class="btn-photo-delete" id="pdel-N" onclick="PhotoMod.deletePhoto('N')" style="display:none">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          <div class="photo-meta" id="pmeta-N"></div>
+        </div>
+
+        <!-- SOUTH -->
+        <div class="photo-card" id="pcard-S">
+          <div class="photo-card-header south">
+            <div class="pcard-compass">S</div>
+            <div>
+              <div class="pcard-title">Sur</div>
+              <div class="pcard-sub">Vista hacia el Sur (180°)</div>
+            </div>
+            <div class="pcard-status" id="pstat-S">Sin foto</div>
+          </div>
+          <div class="photo-preview-wrap" id="pwrap-S">
+            <div class="photo-placeholder" id="pplaceholder-S">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="rgba(255,255,255,.3)"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              <span>Sin fotografía</span>
+            </div>
+            <img id="pimg-S" class="photo-preview" style="display:none;" alt="Sur">
+          </div>
+          <div class="photo-card-actions">
+            <label class="btn-photo-take">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+              Tomar foto
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="PhotoMod.capturePhoto('S',this)">
+            </label>
+            <label class="btn-photo-gallery">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></svg>
+              Galería
+              <input type="file" accept="image/*" style="display:none" onchange="PhotoMod.capturePhoto('S',this)">
+            </label>
+            <button class="btn-photo-delete" id="pdel-S" onclick="PhotoMod.deletePhoto('S')" style="display:none">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          <div class="photo-meta" id="pmeta-S"></div>
+        </div>
+
+        <!-- EAST -->
+        <div class="photo-card" id="pcard-E">
+          <div class="photo-card-header east">
+            <div class="pcard-compass">E</div>
+            <div>
+              <div class="pcard-title">Este</div>
+              <div class="pcard-sub">Vista hacia el Este (90°)</div>
+            </div>
+            <div class="pcard-status" id="pstat-E">Sin foto</div>
+          </div>
+          <div class="photo-preview-wrap" id="pwrap-E">
+            <div class="photo-placeholder" id="pplaceholder-E">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="rgba(255,255,255,.3)"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              <span>Sin fotografía</span>
+            </div>
+            <img id="pimg-E" class="photo-preview" style="display:none;" alt="Este">
+          </div>
+          <div class="photo-card-actions">
+            <label class="btn-photo-take">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+              Tomar foto
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="PhotoMod.capturePhoto('E',this)">
+            </label>
+            <label class="btn-photo-gallery">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></svg>
+              Galería
+              <input type="file" accept="image/*" style="display:none" onchange="PhotoMod.capturePhoto('E',this)">
+            </label>
+            <button class="btn-photo-delete" id="pdel-E" onclick="PhotoMod.deletePhoto('E')" style="display:none">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          <div class="photo-meta" id="pmeta-E"></div>
+        </div>
+
+        <!-- WEST -->
+        <div class="photo-card" id="pcard-O">
+          <div class="photo-card-header west">
+            <div class="pcard-compass">O</div>
+            <div>
+              <div class="pcard-title">Oeste</div>
+              <div class="pcard-sub">Vista hacia el Oeste (270°)</div>
+            </div>
+            <div class="pcard-status" id="pstat-O">Sin foto</div>
+          </div>
+          <div class="photo-preview-wrap" id="pwrap-O">
+            <div class="photo-placeholder" id="pplaceholder-O">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="rgba(255,255,255,.3)"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              <span>Sin fotografía</span>
+            </div>
+            <img id="pimg-O" class="photo-preview" style="display:none;" alt="Oeste">
+          </div>
+          <div class="photo-card-actions">
+            <label class="btn-photo-take">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+              Tomar foto
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="PhotoMod.capturePhoto('O',this)">
+            </label>
+            <label class="btn-photo-gallery">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/></svg>
+              Galería
+              <input type="file" accept="image/*" style="display:none" onchange="PhotoMod.capturePhoto('O',this)">
+            </label>
+            <button class="btn-photo-delete" id="pdel-O" onclick="PhotoMod.deletePhoto('O')" style="display:none">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          <div class="photo-meta" id="pmeta-O"></div>
+        </div>
+
+        <!-- EXPORT BUTTON -->
+        <button onclick="PhotoMod.exportZip()" id="btn-export-zip-bottom"
+          style="width:100%;margin-top:8px;padding:16px;background:var(--pine);color:white;border:none;border-radius:12px;font-family:var(--font);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;display:none">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 8h-3v3h-2v-3h-3l4-4 4 4z"/></svg>
+          Exportar fotografías como ZIP
+        </button>
+
+      </div><!-- /photo-cards -->
+    </div><!-- /photo-grid-wrap -->
+
+    <!-- LIGHTBOX -->
+    <div id="photo-lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:2000;flex-direction:column;align-items:center;justify-content:center;">
+      <button onclick="PhotoMod.closeLightbox()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div id="lightbox-dir" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.7);font-size:13px;font-family:var(--font);font-weight:600;background:rgba(255,255,255,.1);padding:6px 16px;border-radius:20px;"></div>
+      <img id="lightbox-img" style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:4px;" alt="">
+    </div>
+
+  </div>
+
+  <!-- NAV BAR -->
+  <nav class="nav-bar" id="nav-bar">
+    <button class="nav-item active" onclick="App.showView('dashboard')">
+      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      <span>Inicio</span>
+    </button>
+    <button class="nav-item" onclick="App.showView('map')">
+      <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+      <span>Mapa</span>
+    </button>
+    <button class="nav-item" onclick="App.showView('list')">
+      <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+      <span>Sitios</span>
+    </button>
+    <button class="nav-item" onclick="App.showView('photos')">
+      <svg viewBox="0 0 24 24"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+      <span>Fotos</span>
+    </button>
+    <button class="nav-item" onclick="App.exportAll()">
+      <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      <span>Exportar</span>
+    </button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ====================================================
+// SPECIES CATALOG
+// ====================================================
+const SPECIES = {
+  1:'Pinus cooperi',2:'Pinus durangensis',3:'Pinus arizonica',4:'Pinus leiophylla',
+  5:'Pinus teocote',6:'Pinus engelmannii',7:'Pinus lumholtzii',8:'Pinus ayacahuite',
+  9:'Pinus oocarpa',10:'Pinus douglasiana',11:'Pinus michoacana',12:'Pinus chihuahuana',
+  13:'Pinus cembroides',14:'Pinus tenuifolia',15:'Pinus herrerae',16:'Pinus maximinoi',
+  30:'Pinus spp',31:'Juniperus deppeana',32:'Juniperus flaccida',33:'Juniperus monticola',
+  34:'Juniperus spp',35:'Cupressus spp',36:'Pseudotsuga spp',37:'Picea chihuahuana',
+  38:'Abies durangensis',40:'Otras coníferas',41:'Quercus sideroxyla',42:'Quercus durifolia',
+  43:'Quercus obtusata',44:'Quercus coccolobifolia',45:'Quercus laeta',46:'Quercus grisea',
+  47:'Quercus eduardii',48:'Quercus urbanii',49:'Quercus gentryi',50:'Quercus resinosa',
+  51:'Quercus crassifolia',52:'Quercus chihuahuensis',53:'Quercus viminea',100:'Quercus spp',
+  101:'Alnus firmifolia',102:'Alnus jorullensis',103:'Alnus acuminata',104:'Alnus spp',
+  105:'Arbutus xalapensis',106:'Arbutus spp',108:'Prunus serotina',109:'Fraxinus spp',
+  110:'Populus tremuloides',111:'Cedrela odorata',112:'Otras hojosas'
+};
+
+function speciesSelect(id,val='') {
+  let s = `<select id="${id}" style="min-width:90px">`;
+  s += `<option value="">-Esp-</option>`;
+  for(const [k,v] of Object.entries(SPECIES)) s += `<option value="${k}" ${val==k?'selected':''}>${k}-${v.split(' ')[1]||v}</option>`;
+  s += `</select>`;
+  return s;
+}
+function doSelect(id,val='') {
+  const opts = ['','1-DomCod','2-Interm','3-Suprim','4-LibreSin','5-LibreCon','6-Aislado','7-MuertoPie','8-MuertoCaido','9-Tocón'];
+  return `<select id="${id}">${opts.map((o,i)=>`<option value="${i==0?'':i}" ${val==i?'selected':''}>${o}</option>`).join('')}</select>`;
+}
+
+// ====================================================
+// LOCAL DB (IndexedDB)
+// ====================================================
+const DB = {
+  name:'ForestInventory', version:1, db:null,
+  async open() {
+    return new Promise((res,rej)=>{
+      const req = indexedDB.open(DB.name, DB.version);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains('sites')) {
+          const s = db.createObjectStore('sites',{keyPath:'id',autoIncrement:true});
+          s.createIndex('sitio','f01_sitio');
+          s.createIndex('synced','synced');
+        }
+      };
+      req.onsuccess = e => { DB.db = e.target.result; res(DB.db); };
+      req.onerror = e => rej(e);
+    });
+  },
+  async save(data) {
+    return new Promise((res,rej)=>{
+      const tx = DB.db.transaction('sites','readwrite');
+      const store = tx.objectStore('sites');
+      const req = data.id ? store.put(data) : store.add(data);
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = e => rej(e);
+    });
+  },
+  async getAll() {
+    return new Promise((res,rej)=>{
+      const tx = DB.db.transaction('sites','readonly');
+      const store = tx.objectStore('sites');
+      const req = store.getAll();
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = e => rej(e);
+    });
+  },
+  async getById(id) {
+    return new Promise((res,rej)=>{
+      const tx = DB.db.transaction('sites','readonly');
+      const req = tx.objectStore('sites').get(id);
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = e => rej(e);
+    });
+  },
+  async getUnsynced() {
+    return new Promise((res,rej)=>{
+      const tx = DB.db.transaction('sites','readonly');
+      const idx = tx.objectStore('sites').index('synced');
+      const req = idx.getAll(IDBKeyRange.only(0));
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = e => rej(e);
+    });
+  }
+};
+
+// ====================================================
+// APP
+// ====================================================
+const App = {
+  currentSite:null,
+  deviceId: (()=>{ let d=localStorage.getItem('siplafor_device'); if(!d){ d='dev_'+Math.random().toString(36).slice(2,10)+'_'+Date.now(); localStorage.setItem('siplafor_device',d); } return d; })(),
+  sites:[],
+  map:null,
+  userMarker:null,
+  siteMarkers:[],
+  kmlSites:[],
+  currentView:'dashboard',
+  treeRows:0,
+  incrRows:0,
+  regenRows:0,
+
+  async init() {
+    await DB.open();
+    await PhotoDB.open();
+    App.sites = await DB.getAll();
+    App.updateDashStats();
+    App.initMap();
+    App.renderSiteList();
+    App.initStructureForm();
+    App.initRegenForm();
+    App.checkOnline();
+    window.addEventListener('online', ()=>App.checkOnline(true));
+    window.addEventListener('offline', ()=>App.checkOnline(false));
+    document.getElementById('f01_fecha').valueAsDate = new Date();
+    App.loadSupabaseConfig();
+  },
+
+  showView(view) {
+    const views = ['dashboard','map-view','list-view','form-view','photo-view'];
+    views.forEach(v => {
+      const el = document.getElementById(v);
+      if(el) el.classList.add('app-hidden');
+    });
+    const idMap = {map:'map-view', list:'list-view', form:'form-view', photos:'photo-view'};
+    const target = document.getElementById(idMap[view] || 'dashboard');
+    if(target) target.classList.remove('app-hidden');
+    App.currentView = view;
+
+    // nav highlight
+    document.querySelectorAll('.nav-item').forEach((b,i)=>{
+      b.classList.toggle('active', ['dashboard','map','list','photos','export'][i]===view);
+    });
+
+    const nav = document.getElementById('nav-bar');
+    nav.style.display = view==='form' ? 'none' : 'flex';
+
+    if(view==='map' && App.map) {
+      setTimeout(()=>{ App.map.invalidateSize(); GPS.startTracking(); }, 120);
+    }
+    if(view==='list') App.renderSiteList();
+    if(view==='photos') PhotoMod.onEnter();
+    if(view==='dashboard') { App.sites = DB.getAll().then(s=>{App.sites=s;App.updateDashStats();App.renderRecent();}); }
+  },
+
+  // MAP
+  initMap() {
+    App.map = L.map('map', {zoomControl:true, attributionControl:false}).setView([24.1, -105.5], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'OSM', maxZoom:20, maxNativeZoom:19
+    }).addTo(App.map);
+    L.control.attribution({position:'bottomright',prefix:''}).addTo(App.map);
+    App.renderSiteMarkers();
+    // Start GPS automatically when map opens
+    GPS.startTracking();
+  },
+
+  renderSiteMarkers() {
+    App.siteMarkers.forEach(m=>App.map.removeLayer(m));
+    App.siteMarkers = [];
+    App.sites.forEach(site=>{
+      if(!site.f01_utmx || !site.f01_utmy) return;
+      const [lat,lng] = App.utmToLatLng(parseFloat(site.f01_utmx), parseFloat(site.f01_utmy));
+      const color = site.completed ? '#166534' : (site.trees?.length ? '#854d0e' : '#6b7280');
+      const marker = L.circleMarker([lat,lng],{radius:9, fillColor:color, color:'white', weight:2, fillOpacity:1});
+      marker.bindPopup(`
+        <div class="site-popup">
+          <h3>Sitio ${site.f01_sitio}</h3>
+          <p>${site.f01_predio||'Sin predio'} · ${site.f01_paraje||''}</p>
+          <button class="btn-open" onclick="App.openSite(${site.id})">✏️ Formulario</button>
+          <button class="btn-open" style="background:var(--sky);margin-top:4px" onclick="GPS.navigateTo({lat:${lat},lng:${lng},name:'Sitio ${site.f01_sitio}'})">🧭 Ir al sitio</button>
+        </div>`);
+      marker.addTo(App.map);
+      App.siteMarkers.push(marker);
+    });
+    App.kmlSites.forEach(s=>{
+      const marker = L.circleMarker([s.lat,s.lng],{
+        radius:8, fillColor:'#4a7fa5', color:'white', weight:2.5, fillOpacity:.85
+      });
+      marker.siteData = s;
+      marker.bindPopup(`
+        <div class="site-popup">
+          <h3>${s.name}</h3>
+          <p style="font-size:11px;color:#888">KML · ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</p>
+          <button class="btn-open" style="background:var(--sky);margin-bottom:4px" onclick="GPS.navigateTo({lat:${s.lat},lng:${s.lng},name:'${s.name}'})">🧭 Ir al sitio</button>
+          <button class="btn-open" onclick="App.newSiteFromKml(${JSON.stringify(s).replace(/"/g,'&quot;')})">✏️ Iniciar levantamiento</button>
+        </div>`);
+      marker.addTo(App.map);
+      App.siteMarkers.push(marker);
+    });
+  },
+
+  utmToLatLng(x,y,zone=13) {
+    const k0=0.9996, a=6378137, e2=0.00669437999014;
+    const e_p2=e2/(1-e2), M=y/k0;
+    const mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2*e2*e2/256));
+    const e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+    const p1=e1*(3/2-27/32*e1*e1), p2=e1*e1*(21/16-55*e1*e1/32), p3=e1*e1*e1*(151/96), p4=e1*e1*e1*e1*(1097/512);
+    const phi1=mu+p1*Math.sin(2*mu)+p2*Math.sin(4*mu)+p3*Math.sin(6*mu)+p4*Math.sin(8*mu);
+    const N1=a/Math.sqrt(1-e2*Math.sin(phi1)**2);
+    const T1=Math.tan(phi1)**2, C1=e_p2*Math.cos(phi1)**2, R1=a*(1-e2)/Math.pow(1-e2*Math.sin(phi1)**2,1.5);
+    const D=(x-500000)/(N1*k0);
+    let lat=phi1-(N1*Math.tan(phi1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*e_p2)*D*D*D*D/24+(61+90*T1+298*C1+45*T1*T1-252*e_p2-3*C1*C1)*D*D*D*D*D*D/720);
+    let lng=((D-(1+2*T1+C1)*D*D*D/6+(5-2*C1+(28*T1)-(3*C1*C1)+(8*e_p2)+(24*T1*T1))*D*D*D*D*D/120)/Math.cos(phi1))*180/Math.PI+(zone*6-183);
+    lat*=180/Math.PI;
+    return [lat,lng];
+  },
+
+  locateMe() { GPS.centerMap(); },
+
+  getGPS() {
+    if(!navigator.geolocation) { App.toast('GPS no disponible','error'); return; }
+    App.toast('Obteniendo GPS...');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const {latitude:lat,longitude:lng,altitude} = pos.coords;
+        const utm = App.latLngToUTM(lat,lng);
+        document.getElementById('f01_utmx').value = Math.round(utm.x);
+        document.getElementById('f01_utmy').value = Math.round(utm.y);
+        if(altitude) document.getElementById('f01_asnm').value = Math.round(altitude);
+        App.toast('Coordenadas GPS capturadas ✓','success');
+      },
+      err => App.toast('Error: '+err.message,'error'),
+      {enableHighAccuracy:true}
+    );
+  },
+
+  latLngToUTM(lat,lng) {
+    const zone=Math.floor((lng+180)/6)+1;
+    const k0=0.9996,a=6378137,e2=0.00669437999014;
+    const latR=lat*Math.PI/180, lngR=lng*Math.PI/180;
+    const lngR0=((zone-1)*6-180+3)*Math.PI/180;
+    const N=a/Math.sqrt(1-e2*Math.sin(latR)**2);
+    const T=Math.tan(latR)**2, C=e2/(1-e2)*Math.cos(latR)**2, A=Math.cos(latR)*(lngR-lngR0);
+    const M=a*((1-e2/4-3*e2**2/64-5*e2**3/256)*latR-(3*e2/8+3*e2**2/32+45*e2**3/1024)*Math.sin(2*latR)+(15*e2**2/256+45*e2**3/1024)*Math.sin(4*latR)-(35*e2**3/3072)*Math.sin(6*latR));
+    const x=k0*N*(A+(1-T+C)*A**3/6+(5-18*T+T**2+72*C-58*(e2/(1-e2)))*A**5/120)+500000;
+    const y=k0*(M+N*Math.tan(latR)*(A**2/2+(5-T+9*C+4*C**2)*A**4/24+(61-58*T+T**2+600*C-330*(e2/(1-e2)))*A**6/720));
+    return {x,y,zone};
+  },
+
+  loadKML(input) {
+    const file = input.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const parser = new DOMParser();
+      const kml = parser.parseFromString(e.target.result,'application/xml');
+      const placemarks = kml.querySelectorAll('Placemark');
+      App.kmlSites = [];
+      placemarks.forEach(pm=>{
+        const name = pm.querySelector('name')?.textContent?.trim() || 'Sitio';
+        const coords = pm.querySelector('coordinates')?.textContent?.trim().split(',');
+        if(coords && coords.length>=2) {
+          App.kmlSites.push({name, lng:parseFloat(coords[0]), lat:parseFloat(coords[1]), alt:parseFloat(coords[2])||0, data:{}});
+        }
+      });
+      App.renderSiteMarkers();
+      document.getElementById('map-site-count').textContent = `${App.kmlSites.length} KML + ${App.sites.length} sitios`;
+      App.toast(`✓ ${App.kmlSites.length} sitios cargados desde KML`,'success');
+      if(App.kmlSites.length) App.map.fitBounds(App.kmlSites.map(s=>[s.lat,s.lng]), {padding:[30,30]});
+      // Update nearby list if GPS is active
+      if(GPS.lastPos) GPS.updateNearbySites();
+    };
+    reader.readAsText(file);
+    input.value='';
+  },
+
+  loadMBTiles(input) {
+    App.toast('MBTiles: usar servidor local MapTiler o tiles2040. Ver guía.','error');
+    input.value='';
+  },
+
+  filterSites(v) { App.renderSiteMarkers(); },
+
+  newSiteFromKml(site) {
+    App.currentSite = null;
+    App.clearForm();
+    const num = parseInt(site.name.replace(/\D/g,''));
+    if(num) document.getElementById('f01_sitio').value = num;
+    const utm = App.latLngToUTM(site.lat,site.lng);
+    document.getElementById('f01_utmx').value = Math.round(utm.x);
+    document.getElementById('f01_utmy').value = Math.round(utm.y);
+    if(site.alt) document.getElementById('f01_asnm').value = Math.round(site.alt);
+    document.getElementById('form-site-title').textContent = site.name;
+    App.showView('form');
+  },
+
+  newSite() {
+    App.currentSite = null;
+    App.clearForm();
+    document.getElementById('form-site-title').textContent = 'Nuevo Sitio';
+    document.getElementById('form-site-subtitle').textContent = 'Inventario forestal';
+    App.showView('form');
+  },
+
+  clearForm() {
+    // Reset all inputs
+    document.querySelectorAll('#form-view input, #form-view select, #form-view textarea').forEach(el=>{
+      if(el.type==='checkbox') el.checked=false;
+      else if(el.id==='f01_datum') el.value='WGS84';
+      else if(el.type==='date') el.valueAsDate=new Date();
+      else el.value='';
+    });
+    document.getElementById('tree-tbody').innerHTML='';
+    App.treeRows=0;
+    App.incrRows=0;
+    App.initStructureForm();
+    App.initRegenForm();
+    App.initIncrForm();
+  },
+
+  async openSite(id) {
+    const site = await DB.getById(id);
+    if(!site) return;
+    App.currentSite = site;
+    App.clearForm();
+    // Populate F01
+    const f01 = ['umafor','um','predio','sitio','sitio_i','sitio_de','tam','fecha','brig','paraje','utmx','utmy','datum','asnm','pend','ex','co','te','mp','mo','oc','uas','ua','up','el','ec','er','ea','acc','ts','ca','ch','cp','coc','obs','per1','per2','per3','tc1','tc2','tc3'];
+    f01.forEach(k=>{
+      const el = document.getElementById(`f01_${k}`);
+      if(el && site[`f01_${k}`]!==undefined) el.value = site[`f01_${k}`];
+    });
+    // Populate trees
+    (site.trees||[]).forEach(t=>App.addTreeRow(t));
+    // Populate struct
+    (site.struct||[{},{},{},{},{}]).forEach((s,i)=>App.fillStructRow(i,s));
+    // Populate increment
+    App.incrRows=0;
+    (site.incr||[]).forEach(r=>App.addIncRow(r));
+    // Populate regen
+    (site.regen||[]).forEach(r=>App.addRegenRow(r));
+    // Populate F06
+    const f06keys=['pend','esp3','esp6','esp9','ar6','ar9','pa6','pa9','hi6','hi9','cob3','cob6','cob9','cf','cr','cm'];
+    f06keys.forEach(k=>{ const el=document.getElementById(`f06_${k}`); if(el&&site[`f06_${k}`]!==undefined) el.value=site[`f06_${k}`]; });
+    for(let i=1;i<=10;i++){
+      const d=document.getElementById(`f06_gd${i}`), g=document.getElementById(`f06_gg${i}`);
+      if(d&&site[`f06_gd${i}`]!==undefined) d.value=site[`f06_gd${i}`];
+      if(g&&site[`f06_gg${i}`]!==undefined) g.value=site[`f06_gg${i}`];
+    }
+    const f05el=document.getElementById('f05_dist');
+    if(f05el&&site.f05_dist!==undefined) f05el.value=site.f05_dist;
+    document.getElementById('form-site-title').textContent = `Sitio ${site.f01_sitio||''}`;
+    document.getElementById('form-site-subtitle').textContent = site.f01_predio||'Inventario forestal';
+    App.showView('form');
+  },
+
+  showModule(idx,btn) {
+    document.querySelectorAll('.form-module').forEach((m,i)=>m.classList.toggle('active',i===idx));
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  },
+
+  addTreeRow(data={}) {
+    App.treeRows++;
+    const n = App.treeRows;
+    const tbody = document.getElementById('tree-tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="row-num">${n}</td>
+      <td>${speciesSelect(`t_esp_${n}`,data.esp||'')}</td>
+      <td>${doSelect(`t_do_${n}`,data.do||'')}</td>
+      <td><input type="number" id="t_dn_${n}" value="${data.dn||''}" min="7.5" step="0.1" placeholder="cm"></td>
+      <td><input type="number" id="t_at_${n}" value="${data.at||''}" min="0" step="0.1" placeholder="m"></td>
+      <td><input type="number" id="t_ac_${n}" value="${data.ac||''}" min="0" step="0.1" placeholder="m"></td>
+      <td><button onclick="this.closest('tr').remove();App.renumberTrees()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:4px">×</button></td>
+    `;
+    tbody.appendChild(tr);
+  },
+
+  renumberTrees() {
+    document.querySelectorAll('#tree-tbody tr').forEach((tr,i)=>{
+      const td = tr.querySelector('.row-num'); if(td) td.textContent=i+1;
+    });
+  },
+
+  initStructureForm() {
+    const c = document.getElementById('struct-tbody');
+    c.innerHTML = '';
+    for(let i=1;i<=5;i++) {
+      const div = document.createElement('div');
+      div.style.cssText = 'background:white;border-radius:8px;padding:12px;margin-bottom:10px;border:1.5px solid #e5e7eb';
+      div.innerHTML = `
+        <p style="font-weight:700;font-size:12px;color:var(--pine);margin-bottom:8px">${i===1?'🎯 Árbol Central (referencia)':'🌲 Vecino '+i}</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="field"><label>(44) Arb</label><input value="${i}" readonly style="background:#f3f4f6;text-align:center;font-family:var(--mono);font-weight:700"></div>
+          <div class="field"><label>(45) Especie</label>${speciesSelect(`s_esp_${i}`)}</div>
+          <div class="field"><label>(46) Dominancia</label>${doSelect(`s_do_${i}`)}</div>
+          <div class="field"><label>(47) Dn (cm)</label><input type="number" id="s_dn_${i}" step="0.1" placeholder="35"></div>
+          <div class="field"><label>(48) At (m)</label><input type="number" id="s_at_${i}" step="0.1" placeholder="12"></div>
+          <div class="field"><label>(49) Ac (m)</label><input type="number" id="s_ac_${i}" step="0.1" placeholder="7"></div>
+          <div class="field"><label>(50) DCN-S (m)</label><input type="number" id="s_dcns_${i}" step="0.1" placeholder="2"></div>
+          <div class="field"><label>(51) DCE-O (m)</label><input type="number" id="s_dceo_${i}" step="0.1" placeholder="3"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-top:8px">
+          <div class="field"><label>(52) Daño F1</label>
+            <select id="s_df1_${i}"><option value="1">01-Sin daño</option><option value="2">02-Vieja/resinado</option><option value="3">03-Nudoso/ramudo</option><option value="4">04-Ladeado/chueco</option><option value="5">05-Descortezado</option><option value="6">06-Puntiseco</option><option value="7">07-Cinchado</option><option value="8">08-Ovoide</option><option value="9">09-Daño cable</option><option value="10">10-Bifurcado</option><option value="11">11-Lianas</option></select>
+          </div>
+          <div class="field"><label>(53) Ub1</label>
+            <select id="s_ub1_${i}"><option value="1">1-Sin daño</option><option value="2">2-Punta</option><option value="3">3-Media</option><option value="4">4-Base</option><option value="5">5-Punta+Media</option><option value="6">6-Punta+Base</option><option value="7">7-Media+Base</option><option value="8">8-Todos</option></select>
+          </div>
+          <div class="field"><label>(54) Daño F2</label>
+            <select id="s_df2_${i}"><option value="1">01-Sin daño</option><option value="2">02-Vieja/resinado</option><option value="3">03-Nudoso/ramudo</option><option value="4">04-Ladeado/chueco</option><option value="5">05-Descortezado</option><option value="6">06-Puntiseco</option><option value="7">07-Cinchado</option><option value="8">08-Ovoide</option><option value="9">09-Daño cable</option><option value="10">10-Bifurcado</option><option value="11">11-Lianas</option></select>
+          </div>
+          <div class="field"><label>(55) Ub2</label>
+            <select id="s_ub2_${i}"><option value="1">1-Sin daño</option><option value="2">2-Punta</option><option value="3">3-Media</option><option value="4">4-Base</option><option value="5">5-Punta+Media</option><option value="6">6-Punta+Base</option><option value="7">7-Media+Base</option><option value="8">8-Todos</option></select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div class="field"><label>(56) Sanidad</label>
+            <select id="s_sa_${i}"><option value="1">1-Sin plagas</option><option value="2">2-Muérdago</option><option value="3">3-Barrenadores</option><option value="4">4-Descortezadores</option><option value="5">5-Defoliadores</option></select>
+          </div>
+          <div class="field"><label>(57) Calif. Sanidad</label>
+            <select id="s_cs_${i}"><option value="1">1-Sin afectación</option><option value="2">2-Poco (<33%)</option><option value="3">3-Moderado (33-66%)</option><option value="4">4-Intenso (>66%)</option></select>
+          </div>
+        </div>
+        ${i>1?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div class="field"><label>(58) Azimut (°)</label><input type="number" id="s_azt_${i}" min="0" max="360" placeholder="035"></div>
+          <div class="field"><label>(59) Distancia (m)</label><input type="number" id="s_dist_${i}" step="0.1" placeholder="5.4"></div>
+        </div>`:''}
+      `;
+      c.appendChild(div);
+    }
+  },
+
+  fillStructRow(i,data) {
+    const idx = i+1;
+    const fields = ['esp','do','dn','at','ac','dcns','dceo','df1','ub1','df2','ub2','sa','cs','azt','dist'];
+    fields.forEach(f=>{
+      const el=document.getElementById(`s_${f}_${idx}`);
+      if(el&&data[f]!==undefined) el.value=data[f];
+    });
+  },
+
+  initIncrForm() {
+    App.incrRows=0;
+    document.getElementById('incr-tbody').innerHTML='';
+  },
+
+  addIncRow(data={}) {
+    App.incrRows++;
+    const n=App.incrRows;
+    const c=document.getElementById('incr-tbody');
+    const div=document.createElement('div');
+    div.style.cssText='background:white;border-radius:8px;padding:12px;margin-bottom:10px;border:1.5px solid #e5e7eb;position:relative';
+    div.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <p style="font-weight:700;font-size:13px;color:var(--pine)">Viruta ${n}</p>
+        <button onclick="this.closest('div').parentElement.remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:18px">×</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="field"><label>(60) N° Viruta</label><input value="${n}" readonly style="background:#f3f4f6;text-align:center;font-family:var(--mono);font-weight:700"></div>
+        <div class="field"><label>(61) Especie</label>${speciesSelect(`i_esp_${n}`,data.esp||'')}</div>
+        <div class="field"><label>(62) Dominancia</label>${doSelect(`i_do_${n}`,data.do||'')}</div>
+        <div class="field"><label>(63) Dn (cm)</label><input type="number" id="i_dn_${n}" value="${data.dn||''}" step="0.1" placeholder="35"></div>
+        <div class="field"><label>(64) At (m)</label><input type="number" id="i_at_${n}" value="${data.at||''}" step="0.1" placeholder="12"></div>
+        <div class="field"><label>(65) N° Anillos</label><input type="number" id="i_na_${n}" value="${data.na||''}" placeholder="46"></div>
+        <div class="field"><label>(66) Edad (años)</label><input type="number" id="i_edad_${n}" value="${data.edad||''}" placeholder="55"></div>
+        <div class="field"><label>(67) T. Paso</label><input type="number" id="i_tp_${n}" value="${data.tp||''}" placeholder="8"></div>
+        <div class="field"><label>(68) Cat. Edad</label><input type="number" id="i_ce_${n}" value="${data.ce||10}" placeholder="10"></div>
+        <div class="field"><label>(69) Residual</label><input type="number" id="i_r_${n}" value="${data.r||''}" placeholder="6"></div>
+        <div class="field"><label>(70) RCC (mm)</label><input type="number" id="i_rcc_${n}" value="${data.rcc||''}" placeholder="115"></div>
+        <div class="field"><label>(71) R1-RSC (mm)</label><input type="number" id="i_r1_${n}" value="${data.r1||''}" placeholder="102"></div>
+      </div>
+      <p style="font-size:11px;font-weight:700;color:#555;margin:10px 0 6px;text-transform:uppercase">Radios por categoría de edad (mm)</p>
+      <div class="radii-grid">
+        ${[2,3,4,5,6,7,8,9,10].map(j=>`<div class="field"><label>R${j}</label><input type="number" id="i_r${j}_${n}" value="${data['r'+j]||''}" step="0.1"></div>`).join('')}
+      </div>
+    `;
+    c.appendChild(div);
+  },
+
+  initRegenForm() {
+    App.regenRows=0;
+    document.getElementById('regen-tbody').innerHTML='';
+  },
+
+  addRegenRow(data={}) {
+    App.regenRows++;
+    const n=App.regenRows;
+    const c=document.getElementById('regen-tbody');
+    const div=document.createElement('div');
+    div.style.cssText='background:white;border-radius:8px;padding:12px;margin-bottom:10px;border:1.5px solid #e5e7eb';
+    div.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="field" style="flex:1"><label>(83) Especie</label>${speciesSelect(`rg_esp_${n}`,data.esp||'')}</div>
+        <button onclick="this.closest('div').parentElement.remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:18px;margin-left:8px;margin-top:16px">×</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr><th style="background:var(--pine);color:white;padding:6px">Clase</th><th style="background:var(--pine);color:white;padding:6px">(84) Frec</th><th style="background:var(--pine);color:white;padding:6px">(85) EM</th><th style="background:var(--pine);color:white;padding:6px">(86) DM</th></tr></thead>
+          <tbody>
+            <tr><td style="padding:4px;font-size:10px;font-weight:700;color:#555">0.25-1.50 m</td>
+              <td><input type="number" id="rg_f1_${n}" value="${data.f1||''}" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+              <td><input type="number" id="rg_em1_${n}" value="${data.em1||''}" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+              <td><input type="number" id="rg_dm1_${n}" value="${data.dm1||''}" step="0.1" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+            </tr>
+            <tr style="background:#f9fafb"><td style="padding:4px;font-size:10px;font-weight:700;color:#555">1.51-2.75 m</td>
+              <td><input type="number" id="rg_f2_${n}" value="${data.f2||''}" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+              <td><input type="number" id="rg_em2_${n}" value="${data.em2||''}" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+              <td><input type="number" id="rg_dm2_${n}" value="${data.dm2||''}" step="0.1" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+            </tr>
+            <tr><td style="padding:4px;font-size:10px;font-weight:700;color:#555">> 2.75 m</td>
+              <td><input type="number" id="rg_f3_${n}" value="${data.f3||''}" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+              <td><input type="number" id="rg_em3_${n}" value="${data.em3||''}" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+              <td><input type="number" id="rg_dm3_${n}" value="${data.dm3||''}" step="0.1" style="width:100%;border:1px solid #e5e7eb;border-radius:4px;padding:5px;text-align:center;font-family:var(--mono)"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+    c.appendChild(div);
+  },
+
+  collectSiteData() {
+    const g = id => { const el=document.getElementById(id); return el?el.value:''; };
+    // F01
+    const data = {
+      f01_umafor:g('f01_umafor'),f01_um:g('f01_um'),f01_predio:g('f01_predio'),
+      f01_sitio:g('f01_sitio'),f01_sitio_i:g('f01_sitio_i'),f01_sitio_de:g('f01_sitio_de'),
+      f01_tam:g('f01_tam'),f01_fecha:g('f01_fecha'),f01_brig:g('f01_brig'),
+      f01_paraje:g('f01_paraje'),f01_utmx:g('f01_utmx'),f01_utmy:g('f01_utmy'),
+      f01_datum:'WGS84',f01_asnm:g('f01_asnm'),f01_pend:g('f01_pend'),
+      f01_ex:g('f01_ex'),f01_co:g('f01_co'),f01_te:g('f01_te'),f01_mp:g('f01_mp'),
+      f01_mo:g('f01_mo'),f01_oc:g('f01_oc'),f01_uas:g('f01_uas'),f01_ua:g('f01_ua'),
+      f01_up:g('f01_up'),f01_el:g('f01_el'),f01_ec:g('f01_ec'),f01_er:g('f01_er'),
+      f01_ea:g('f01_ea'),f01_acc:g('f01_acc'),f01_per1:g('f01_per1'),f01_per2:g('f01_per2'),
+      f01_per3:g('f01_per3'),f01_ca:g('f01_ca'),f01_ch:g('f01_ch'),f01_cp:g('f01_cp'),
+      f01_coc:g('f01_coc'),f01_ts:g('f01_ts'),f01_tc1:g('f01_tc1'),f01_tc2:g('f01_tc2'),
+      f01_tc3:g('f01_tc3'),f01_obs:g('f01_obs'),
+    };
+    // Trees
+    const trees=[];
+    document.querySelectorAll('#tree-tbody tr').forEach((tr,i)=>{
+      const n=i+1;
+      trees.push({n,esp:g(`t_esp_${n}`),do:g(`t_do_${n}`),dn:g(`t_dn_${n}`),at:g(`t_at_${n}`),ac:g(`t_ac_${n}`)});
+    });
+    data.trees=trees;
+    // Structure
+    const struct=[];
+    for(let i=1;i<=5;i++){
+      struct.push({arb:i,esp:g(`s_esp_${i}`),do:g(`s_do_${i}`),dn:g(`s_dn_${i}`),at:g(`s_at_${i}`),
+        ac:g(`s_ac_${i}`),dcns:g(`s_dcns_${i}`),dceo:g(`s_dceo_${i}`),
+        df1:g(`s_df1_${i}`),ub1:g(`s_ub1_${i}`),df2:g(`s_df2_${i}`),ub2:g(`s_ub2_${i}`),
+        sa:g(`s_sa_${i}`),cs:g(`s_cs_${i}`),azt:g(`s_azt_${i}`),dist:g(`s_dist_${i}`)});
+    }
+    data.struct=struct;
+    // Increment
+    const incr=[];
+    for(let n=1;n<=App.incrRows;n++){
+      if(!document.getElementById(`i_esp_${n}`)) continue;
+      const r={n,esp:g(`i_esp_${n}`),do:g(`i_do_${n}`),dn:g(`i_dn_${n}`),at:g(`i_at_${n}`),
+        na:g(`i_na_${n}`),edad:g(`i_edad_${n}`),tp:g(`i_tp_${n}`),ce:g(`i_ce_${n}`),r:g(`i_r_${n}`),
+        rcc:g(`i_rcc_${n}`),r1:g(`i_r1_${n}`)};
+      for(let j=2;j<=10;j++) r['r'+j]=g(`i_r${j}_${n}`);
+      incr.push(r);
+    }
+    data.incr=incr;
+    // Regen
+    const regen=[];
+    for(let n=1;n<=App.regenRows;n++){
+      if(!document.getElementById(`rg_esp_${n}`)) continue;
+      regen.push({esp:g(`rg_esp_${n}`),f1:g(`rg_f1_${n}`),em1:g(`rg_em1_${n}`),dm1:g(`rg_dm1_${n}`),
+        f2:g(`rg_f2_${n}`),em2:g(`rg_em2_${n}`),dm2:g(`rg_dm2_${n}`),
+        f3:g(`rg_f3_${n}`),em3:g(`rg_em3_${n}`),dm3:g(`rg_dm3_${n}`)});
+    }
+    data.regen=regen;
+    data.f05_dist=g('f05_dist');
+    // F06
+    ['pend','esp3','esp6','esp9','ar6','ar9','pa6','pa9','hi6','hi9','cob3','cob6','cob9','cf','cr','cm'].forEach(k=>data[`f06_${k}`]=g(`f06_${k}`));
+    for(let i=1;i<=10;i++){data[`f06_gd${i}`]=g(`f06_gd${i}`);data[`f06_gg${i}`]=g(`f06_gg${i}`);}
+    data.synced=0;
+    data.completed = trees.length>0&&data.f01_sitio!=='';
+    if(App.currentSite?.id) data.id=App.currentSite.id;
+    return data;
+  },
+
+  async saveSite() {
+    const data = App.collectSiteData();
+    if(!data.f01_sitio) { App.toast('Ingresa el número de sitio','error'); return; }
+    try {
+      const id = await DB.save(data);
+      data.id=id;
+      App.currentSite=data;
+      App.sites = await DB.getAll();
+      App.toast('Sitio guardado correctamente ✓','success');
+      App.renderSiteMarkers();
+    } catch(e) { App.toast('Error al guardar: '+e.message,'error'); }
+  },
+
+  async exportSite() {
+    await App.saveSite();
+    const data = App.collectSiteData();
+    App.generateExcel([data]);
+  },
+
+  async exportAll() {
+    const sites = await DB.getAll();
+    if(!sites.length) { App.toast('No hay sitios guardados','error'); return; }
+    App.generateExcel(sites);
+  },
+
+  generateExcel(sites) {
+    const wb = XLSX.utils.book_new();
+
+    // F01 - Control
+    const f01_headers = ['1.UMAFOR','3.UM','4.SITIO','5.SITIO_I','6.SITIO_DE','7.TAM','8.FECHA','9.BRIG','10.PARAJE','11.UTM X (Oeste)','12.UTM Y (Norte)','13.DATUM','14.ASNM','15.PEND','16.EX','17.CO','18.TE','19.MP','20.MO','21.OC','22.UAS','23.UA','24.UP','25.EL','26.EC','27.ER','28.EA','29.ACC','30.PER1','30.PER2','30.PER3','31.CA','32.CH','33.CP','34.COC','35.TS','36.TC1','36.TC2','36.TC3','37.OBS'];
+    const f01_rows = sites.map(s=>[s.f01_umafor,s.f01_um,s.f01_sitio,s.f01_sitio_i,s.f01_sitio_de,s.f01_tam,s.f01_fecha,s.f01_brig,s.f01_paraje,s.f01_utmx,s.f01_utmy,'WGS84',s.f01_asnm,s.f01_pend,s.f01_ex,s.f01_co,s.f01_te,s.f01_mp,s.f01_mo,s.f01_oc,s.f01_uas,s.f01_ua,s.f01_up,s.f01_el,s.f01_ec,s.f01_er,s.f01_ea,s.f01_acc,s.f01_per1,s.f01_per2,s.f01_per3,s.f01_ca,s.f01_ch,s.f01_cp,s.f01_coc,s.f01_ts,s.f01_tc1,s.f01_tc2,s.f01_tc3,s.f01_obs]);
+    const ws1 = XLSX.utils.aoa_to_sheet([f01_headers,...f01_rows]);
+    XLSX.utils.book_append_sheet(wb,ws1,'F01');
+
+    // F02 - Trees
+    const f02_headers = ['SITIO','38.ARBOL','39.ESP','40.DO','41.DN','42.AT','43.AC'];
+    const f02_rows=[];
+    sites.forEach(s=>(s.trees||[]).forEach((t,i)=>f02_rows.push([s.f01_sitio,i+1,t.esp,t.do,t.dn,t.at,t.ac])));
+    const ws2 = XLSX.utils.aoa_to_sheet([f02_headers,...f02_rows]);
+    XLSX.utils.book_append_sheet(wb,ws2,'F02');
+
+    // F03 - Structure
+    const f03_headers=['SITIO','44.ARBOL','45.ESP','46.DO','47.DN','48.AT','49.AC','50.DCNS','51.DCEO','52.DF1','53.UB1','54.DF2','55.UB2','56.SA','57.CS','58.AZT','59.DIST'];
+    const f03_rows=[];
+    sites.forEach(s=>(s.struct||[]).forEach(r=>f03_rows.push([s.f01_sitio,r.arb,r.esp,r.do,r.dn,r.at,r.ac,r.dcns,r.dceo,r.df1,r.ub1,r.df2,r.ub2,r.sa,r.cs,r.azt,r.dist])));
+    const ws3 = XLSX.utils.aoa_to_sheet([f03_headers,...f03_rows]);
+    XLSX.utils.book_append_sheet(wb,ws3,'F03');
+
+    // F04 - Increment
+    const f04_headers=['SITIO','60.VIRUTA','61.ESP','62.DO','63.DN','64.AT','65.NA','66.EDAD','67.TP','68.CE','69.R','70.RCC','71.R1(RSC)','72.R2','73.R3','74.R4','75.R5','76.R6','77.R7','78.R8','79.R9','80.R10'];
+    const f04_rows=[];
+    sites.forEach(s=>(s.incr||[]).forEach(r=>f04_rows.push([s.f01_sitio,r.n,r.esp,r.do,r.dn,r.at,r.na,r.edad,r.tp,r.ce,r.r,r.rcc,r.r1,r.r2,r.r3,r.r4,r.r5,r.r6,r.r7,r.r8,r.r9,r.r10])));
+    const ws4 = XLSX.utils.aoa_to_sheet([f04_headers,...f04_rows]);
+    XLSX.utils.book_append_sheet(wb,ws4,'F04');
+
+    // F05 - Regen
+    const f05_headers=['SITIO','81.TAM','82.DIST','83.ESP','84.FREC_0.25','85.EM_0.25','86.DM_0.25','84.FREC_1.51','85.EM_1.51','86.DM_1.51','84.FREC_2.75','85.EM_2.75','86.DM_2.75'];
+    const f05_rows=[];
+    sites.forEach(s=>(s.regen||[]).forEach(r=>f05_rows.push([s.f01_sitio,'9m2',s.f05_dist,r.esp,r.f1,r.em1,r.dm1,r.f2,r.em2,r.dm2,r.f3,r.em3,r.dm3])));
+    const ws5 = XLSX.utils.aoa_to_sheet([f05_headers,...f05_rows]);
+    XLSX.utils.book_append_sheet(wb,ws5,'F05');
+
+    // F06 - Combustibles
+    const f06_headers=['SITIO','87.PEND','88.ESP_3','88.ESP_6','88.ESP_9','89.ALT_AR_6','89.ALT_AR_9','89.ALT_PA_6','89.ALT_PA_9','89.ALT_HI_6','89.ALT_HI_9','90.COB_3','90.COB_6','90.COB_9','91.COMB_F','91.COMB_R','91.COMB_M','91.COMB_G_DIAM_1','91.COMB_G_DIAM_2','91.COMB_G_DIAM_3','91.COMB_G_DIAM_4','91.COMB_G_DIAM_5','91.COMB_G_DIAM_6','91.COMB_G_DIAM_7','91.COMB_G_DIAM_8','91.COMB_G_DIAM_9','91.COMB_G_DIAM_10','91.COMB_G_GRAD_1','91.COMB_G_GRAD_2','91.COMB_G_GRAD_3','91.COMB_G_GRAD_4','91.COMB_G_GRAD_5','91.COMB_G_GRAD_6','91.COMB_G_GRAD_7','91.COMB_G_GRAD_8','91.COMB_G_GRAD_9','91.COMB_G_GRAD_10'];
+    const f06_rows=sites.map(s=>{
+      const diams=[],grads=[];
+      for(let i=1;i<=10;i++){diams.push(s[`f06_gd${i}`]||'');grads.push(s[`f06_gg${i}`]||'');}
+      return [s.f01_sitio,s.f06_pend,s.f06_esp3,s.f06_esp6,s.f06_esp9,s.f06_ar6,s.f06_ar9,s.f06_pa6,s.f06_pa9,s.f06_hi6,s.f06_hi9,s.f06_cob3,s.f06_cob6,s.f06_cob9,s.f06_cf,s.f06_cr,s.f06_cm,...diams,...grads];
+    });
+    const ws6 = XLSX.utils.aoa_to_sheet([f06_headers,...f06_rows]);
+    XLSX.utils.book_append_sheet(wb,ws6,'F06');
+
+    const fname = `Inventario_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+    App.toast(`Excel exportado: ${fname}`,'success');
+  },
+
+  renderSiteList(filter='') {
+    const list = document.getElementById('site-list');
+    if(!list) return;
+    DB.getAll().then(sites=>{
+      App.sites=sites;
+      const filtered = filter ? sites.filter(s=>
+        (s.f01_sitio||'').toString().includes(filter)||
+        (s.f01_predio||'').toLowerCase().includes(filter.toLowerCase())||
+        (s.f01_paraje||'').toLowerCase().includes(filter.toLowerCase())
+      ) : sites;
+      document.getElementById('list-count').textContent = `${filtered.length} sitios`;
+      if(!filtered.length){
+        list.innerHTML='<div style="text-align:center;padding:40px;color:#aaa"><p style="font-size:40px">🌲</p><p style="margin-top:10px">Sin sitios registrados</p><p style="font-size:12px;margin-top:4px">Carga un KML o agrega un sitio nuevo</p></div>';
+        return;
+      }
+      list.innerHTML = filtered.map(s=>{
+        const status = s.completed ? 'done' : (s.trees?.length ? 'partial' : 'pending');
+        const badge = status==='done'?'badge-done':status==='partial'?'badge-partial':'badge-pending';
+        const label = status==='done'?'Completo':status==='partial'?'En proceso':'Pendiente';
+        return `<div class="site-card" onclick="App.openSite(${s.id})">
+          <div class="site-icon"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg></div>
+          <div class="site-info">
+            <h3>Sitio ${s.f01_sitio||'--'} · ${s.f01_um||'--'}</h3>
+            <p>${s.f01_predio||'Sin predio'} · ${s.f01_paraje||''}</p>
+            <p style="font-size:10px;color:#bbb;font-family:var(--mono)">${s.f01_fecha||''} · ${(s.trees||[]).length} árboles</p>
+          </div>
+          <div class="site-status">
+            <span class="badge ${badge}">${label}</span>
+            ${s.synced?'<span style="font-size:9px;color:#4ade80">☁ Sync</span>':'<span style="font-size:9px;color:#aaa">⏳ Local</span>'}
+          </div>
+        </div>`;
+      }).join('');
+    });
+  },
+
+  searchSites(v) { App.renderSiteList(v); },
+
+  updateDashStats() {
+    document.getElementById('stat-total').textContent = App.sites.length;
+    document.getElementById('stat-done').textContent = App.sites.filter(s=>s.completed).length;
+    document.getElementById('stat-trees').textContent = App.sites.reduce((a,s)=>a+(s.trees?.length||0),0);
+    const syncEl = document.getElementById('stat-sync');
+    if(syncEl) syncEl.textContent = App.sites.filter(s=>s.synced).length;
+    PhotoDB.countAll().then(n=>{ const el=document.getElementById('stat-photos'); if(el) el.textContent=n; });
+  },
+
+  renderRecent() {
+    const c = document.getElementById('recent-list');
+    const recent = App.sites.slice(-5).reverse();
+    c.innerHTML = recent.map(s=>`
+      <div class="site-card" onclick="App.openSite(${s.id})">
+        <div class="site-icon" style="width:36px;height:36px"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg></div>
+        <div class="site-info"><h3>Sitio ${s.f01_sitio||'--'}</h3><p>${s.f01_predio||'Sin predio'}</p></div>
+      </div>`).join('');
+  },
+
+  // SUPABASE SYNC
+  supabaseUrl: '', supabaseKey: '',
+  openSupabaseConfig() {
+    const url = prompt('URL Supabase (ej: https://xxxx.supabase.co):', App.supabaseUrl||'');
+    if(url !== null) { App.supabaseUrl = url.trim(); localStorage.setItem('siplafor_url', App.supabaseUrl); }
+    const key = prompt('Anon Key de Supabase:', App.supabaseKey||'');
+    if(key !== null) { App.supabaseKey = key.trim(); localStorage.setItem('siplafor_key', App.supabaseKey); }
+    if(App.supabaseUrl && App.supabaseKey) App.toast('Supabase configurado ✓','success');
+  },
+
+  loadSupabaseConfig() {
+    App.supabaseUrl = localStorage.getItem('siplafor_url') || '';
+    App.supabaseKey = localStorage.getItem('siplafor_key') || '';
+  },
+
+  async syncToSupabase() {
+    if(!navigator.onLine) { App.toast('Sin conexión a internet','error'); return; }
+    App.loadSupabaseConfig();
+    if(!App.supabaseUrl || !App.supabaseKey) {
+      App.openSupabaseConfig();
+      if(!App.supabaseUrl || !App.supabaseKey) { App.toast('Configura Supabase primero','error'); return; }
+    }
+    const sites = await DB.getUnsynced();
+    if(!sites.length) { App.toast('Todos los sitios ya están sincronizados ✓','success'); return; }
+    const bar = document.getElementById('sync-bar');
+    bar.className='sync-bar syncing';
+    document.getElementById('sync-text').textContent = `Sincronizando ${sites.length} sitios...`;
+    let ok=0;
+    for(const site of sites) {
+      try {
+        const resp = await fetch(`${App.supabaseUrl}/rest/v1/inventario_sitios`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','apikey':App.supabaseKey,'Authorization':'Bearer '+App.supabaseKey,'Prefer':'return=minimal'},
+          body:JSON.stringify({
+            f01_umafor:site.f01_umafor, f01_predio:site.f01_predio, f01_um:site.f01_um,
+            f01_sitio:site.f01_sitio, f01_sitio_i:site.f01_sitio_i, f01_sitio_de:site.f01_sitio_de,
+            f01_tam:site.f01_tam||1000, f01_fecha:site.f01_fecha, f01_brig:site.f01_brig,
+            f01_paraje:site.f01_paraje,
+            f01_utm_x:parseFloat(site.f01_utmx)||null, f01_utm_y:parseFloat(site.f01_utmy)||null,
+            f01_datum:'WGS84', f01_asnm:site.f01_asnm||null, f01_pend:site.f01_pend||null,
+            f01_ex:site.f01_ex||null, f01_co:site.f01_co||null, f01_te:site.f01_te||null,
+            f01_mp:site.f01_mp||null, f01_mo:site.f01_mo||null, f01_oc:site.f01_oc||null,
+            f01_uas:site.f01_uas||null, f01_ua:site.f01_ua||null, f01_up:site.f01_up||null,
+            f01_el:site.f01_el||null, f01_ec:site.f01_ec||null, f01_er:site.f01_er||null,
+            f01_ea:site.f01_ea||null, f01_acc:site.f01_acc||null,
+            f01_per1:site.f01_per1||null, f01_per2:site.f01_per2||null, f01_per3:site.f01_per3||null,
+            f01_ca:site.f01_ca||null, f01_ch:site.f01_ch||null, f01_cp:site.f01_cp||null,
+            f01_coc:site.f01_coc||null, f01_ts:site.f01_ts||null,
+            f01_tc1:site.f01_tc1||null, f01_tc2:site.f01_tc2||null, f01_tc3:site.f01_tc3||null,
+            f01_obs:site.f01_obs||null,
+            device_id: App.deviceId,
+            completed:site.completed||false, num_trees:(site.trees||[]).length
+          })
+        });
+        if(resp.ok||resp.status===201) { site.synced=1; await DB.save(site); ok++; }
+      } catch(e){ console.warn('Sync error site', site.f01_sitio, e.message); }
+    }
+    App.checkOnline();
+    App.updateDashStats();
+    App.toast(`${ok} de ${sites.length} sitios sincronizados ☁`,'success');
+  },
+
+  checkOnline(online=navigator.onLine) {
+    const bar = document.getElementById('sync-bar');
+    const txt = document.getElementById('sync-text');
+    DB.getUnsynced().then(pending=>{
+      const n = pending.length;
+      if(online) {
+        bar.className='sync-bar';
+        bar.style.background='var(--moss)';
+        txt.textContent = n>0 ? `🟢 En línea · ${n} sitios pendientes de sync — toca para sincronizar` : '🟢 En línea · Todo sincronizado ✓';
+      } else {
+        bar.className='sync-bar offline';
+        txt.textContent = `🔴 Sin conexión · Modo offline · ${n} sitios pendientes`;
+      }
+    });
+  },
+
+  toast(msg,type='') {
+    const t=document.getElementById('toast');
+    t.textContent=msg;
+    t.className='toast show'+(type?' '+type:'');
+    clearTimeout(t._timer);
+    t._timer=setTimeout(()=>t.className='toast',3000);
+  }
+};
+
+// ====================================================
+// PHOTO DATABASE  (separate IndexedDB object store)
+// ====================================================
+const PhotoDB = {
+  name: 'ForestPhotos', version: 1, db: null,
+
+  async open() {
+    if(PhotoDB.db) return PhotoDB.db;
+    return new Promise((res, rej) => {
+      const req = indexedDB.open(PhotoDB.name, PhotoDB.version);
+      req.onupgradeneeded = e => {
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains('photos')) {
+          const s = db.createObjectStore('photos', {keyPath:'id', autoIncrement:true});
+          s.createIndex('site_dir', ['siteKey','dir'], {unique:true});
+          s.createIndex('siteKey', 'siteKey');
+        }
+      };
+      req.onsuccess = e => { PhotoDB.db = e.target.result; res(PhotoDB.db); };
+      req.onerror = e => rej(e);
+    });
+  },
+
+  async save(record) {
+    await PhotoDB.open();
+    return new Promise((res, rej) => {
+      const tx = PhotoDB.db.transaction('photos','readwrite');
+      const store = tx.objectStore('photos');
+      // Try update by site+dir first
+      const idx = store.index('site_dir');
+      const get = idx.get([record.siteKey, record.dir]);
+      get.onsuccess = e => {
+        if(e.target.result) {
+          record.id = e.target.result.id;
+          store.put(record).onsuccess = r => res(r.target.result);
+        } else {
+          store.add(record).onsuccess = r => res(r.target.result);
+        }
+      };
+      get.onerror = () => { store.add(record).onsuccess = r => res(r.target.result); };
+    });
+  },
+
+  async getBySite(siteKey) {
+    await PhotoDB.open();
+    return new Promise((res, rej) => {
+      const tx = PhotoDB.db.transaction('photos','readonly');
+      const idx = tx.objectStore('photos').index('siteKey');
+      const req = idx.getAll(siteKey);
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = e => rej(e);
+    });
+  },
+
+  async delete(siteKey, dir) {
+    await PhotoDB.open();
+    return new Promise((res, rej) => {
+      const tx = PhotoDB.db.transaction('photos','readwrite');
+      const idx = tx.objectStore('photos').index('site_dir');
+      const get = idx.get([siteKey, dir]);
+      get.onsuccess = e => {
+        if(e.target.result) {
+          tx.objectStore('photos').delete(e.target.result.id).onsuccess = () => res();
+        } else res();
+      };
+      get.onerror = () => res();
+    });
+  },
+
+  async getAll() {
+    await PhotoDB.open();
+    return new Promise((res, rej) => {
+      const tx = PhotoDB.db.transaction('photos','readonly');
+      const req = tx.objectStore('photos').getAll();
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = e => rej(e);
+    });
+  },
+
+  async countAll() {
+    await PhotoDB.open();
+    return new Promise((res) => {
+      const tx = PhotoDB.db.transaction('photos','readonly');
+      const req = tx.objectStore('photos').count();
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = () => res(0);
+    });
+  }
+};
+
+// ====================================================
+// PHOTO MODULE
+// ====================================================
+const PhotoMod = {
+  currentSiteKey: null,   // e.g. "184" or siteId
+  currentSiteName: null,
+  photos: {},             // {N, S, E, O} → record or null
+  DIRS: ['N','S','E','O'],
+  DIR_NAMES: {N:'Norte', S:'Sur', E:'Este', O:'Oeste'},
+  DIR_DEG:  {N:'0°', S:'180°', E:'90°', O:'270°'},
+
+  // Called when entering photos view
+  async onEnter() {
+    await PhotoDB.open();
+    await PhotoMod.populateSiteSelector();
+    // If a site was already selected keep it
+    if(PhotoMod.currentSiteKey) {
+      await PhotoMod.loadPhotos();
+    }
+  },
+
+  async populateSiteSelector() {
+    const sites = await DB.getAll();
+    const sel = document.getElementById('photo-site-select');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— Elige un sitio —</option>';
+    sites.forEach(s => {
+      const key = String(s.id);
+      const label = `Sitio ${s.f01_sitio||'?'} · ${s.f01_predio||'Sin predio'} · ${s.f01_paraje||''}`;
+      sel.innerHTML += `<option value="${key}" data-name="Sitio ${s.f01_sitio||key}" ${prev===key?'selected':''}>${label}</option>`;
+    });
+    // Also add KML sites that don't have a DB record
+    App.kmlSites.forEach((s,i) => {
+      const key = `kml_${i}`;
+      sel.innerHTML += `<option value="${key}" data-name="${s.name}" ${prev===key?'selected':''}>[KML] ${s.name}</option>`;
+    });
+  },
+
+  async selectSite(key) {
+    if(!key) {
+      PhotoMod.currentSiteKey = null;
+      document.getElementById('photo-empty-state').style.display='block';
+      document.getElementById('photo-cards').style.display='none';
+      document.getElementById('btn-export-zip').style.display='none';
+      document.getElementById('photo-site-label').textContent = 'Selecciona un sitio';
+      return;
+    }
+    const sel = document.getElementById('photo-site-select');
+    const opt = sel.querySelector(`option[value="${key}"]`);
+    PhotoMod.currentSiteKey = key;
+    PhotoMod.currentSiteName = opt ? opt.dataset.name : key;
+    document.getElementById('photo-site-label').textContent = PhotoMod.currentSiteName;
+    document.getElementById('photo-site-info-name').textContent = PhotoMod.currentSiteName;
+    document.getElementById('photo-empty-state').style.display='none';
+    document.getElementById('photo-cards').style.display='block';
+    document.getElementById('btn-export-zip').style.display='flex';
+    await PhotoMod.loadPhotos();
+  },
+
+  async loadPhotos() {
+    if(!PhotoMod.currentSiteKey) return;
+    const records = await PhotoDB.getBySite(PhotoMod.currentSiteKey);
+    PhotoMod.photos = {};
+    records.forEach(r => { PhotoMod.photos[r.dir] = r; });
+    PhotoMod.DIRS.forEach(dir => PhotoMod.renderCard(dir));
+    PhotoMod.updateCountBadge();
+  },
+
+  renderCard(dir) {
+    const rec = PhotoMod.photos[dir];
+    const img = document.getElementById(`pimg-${dir}`);
+    const placeholder = document.getElementById(`pplaceholder-${dir}`);
+    const stat = document.getElementById(`pstat-${dir}`);
+    const del = document.getElementById(`pdel-${dir}`);
+    const meta = document.getElementById(`pmeta-${dir}`);
+    const wrap = document.getElementById(`pwrap-${dir}`);
+
+    if(rec && rec.dataUrl) {
+      img.src = rec.dataUrl;
+      img.style.display = 'block';
+      img.onclick = () => PhotoMod.openLightbox(dir);
+      placeholder.style.display = 'none';
+      stat.textContent = '✓ Capturada';
+      stat.className = 'pcard-status done';
+      del.style.display = 'flex';
+      if(meta) {
+        meta.className = 'photo-meta visible';
+        const d = new Date(rec.ts);
+        meta.innerHTML = `📅 ${d.toLocaleDateString('es-MX')} ${d.toLocaleTimeString('es-MX')} &nbsp;·&nbsp; 📐 ${rec.dir} - ${PhotoMod.DIR_NAMES[dir]} (${PhotoMod.DIR_DEG[dir]})` +
+          (rec.lat ? ` &nbsp;·&nbsp; 📍 ${rec.lat.toFixed(5)}, ${rec.lng.toFixed(5)}` : '') +
+          (rec.sizeKB ? ` &nbsp;·&nbsp; 💾 ${rec.sizeKB} KB` : '');
+      }
+    } else {
+      img.style.display = 'none';
+      img.src = '';
+      placeholder.style.display = 'flex';
+      stat.textContent = 'Sin foto';
+      stat.className = 'pcard-status';
+      del.style.display = 'none';
+      if(meta) { meta.className = 'photo-meta'; meta.innerHTML = ''; }
+    }
+  },
+
+  updateCountBadge() {
+    const count = PhotoMod.DIRS.filter(d => PhotoMod.photos[d]).length;
+    document.getElementById('photo-count-badge').textContent = `${count} / 4`;
+    document.getElementById('photo-site-info-sub').textContent =
+      count === 4 ? '✅ Todas las fotografías capturadas' :
+      count === 0 ? 'Sin fotos capturadas' :
+      `${count} de 4 fotografías capturadas`;
+    const btn = document.getElementById('btn-export-zip-bottom');
+    if(btn) btn.style.display = count > 0 ? 'flex' : 'none';
+  },
+
+  async capturePhoto(dir, input) {
+    const file = input.files[0];
+    if(!file || !PhotoMod.currentSiteKey) { input.value=''; return; }
+
+    App.toast(`Procesando foto ${PhotoMod.DIR_NAMES[dir]}...`);
+
+    // Compress to JPEG max 1200px
+    const compressed = await PhotoMod.compressImage(file, 1200, 0.82);
+    const sizeKB = Math.round(compressed.length * 0.75 / 1024); // approx base64 size
+
+    const record = {
+      siteKey: PhotoMod.currentSiteKey,
+      siteName: PhotoMod.currentSiteName,
+      dir,
+      dataUrl: compressed,
+      filename: `${PhotoMod.currentSiteName.replace(/\s+/g,'_')}_${dir}_${PhotoMod.DIR_NAMES[dir]}.jpg`,
+      ts: Date.now(),
+      sizeKB,
+      lat: GPS.lastPos?.lat || null,
+      lng: GPS.lastPos?.lng || null,
+      alt: GPS.lastPos?.altitude || null,
+    };
+
+    await PhotoDB.save(record);
+    PhotoMod.photos[dir] = record;
+    PhotoMod.renderCard(dir);
+    PhotoMod.updateCountBadge();
+    App.toast(`📸 Foto ${PhotoMod.DIR_NAMES[dir]} guardada ✓`, 'success');
+    input.value = '';
+    // Update dashboard stat
+    PhotoDB.countAll().then(n=>{ const el=document.getElementById('stat-photos'); if(el) el.textContent=n; });
+  },
+
+  // Compress image via canvas
+  compressImage(file, maxPx, quality) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let {width:w, height:h} = img;
+        if(w > maxPx || h > maxPx) {
+          if(w > h) { h = Math.round(h * maxPx/w); w = maxPx; }
+          else      { w = Math.round(w * maxPx/h); h = maxPx; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        res(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = rej;
+      img.src = url;
+    });
+  },
+
+  async deletePhoto(dir) {
+    if(!confirm(`¿Eliminar la fotografía ${PhotoMod.DIR_NAMES[dir]}?`)) return;
+    await PhotoDB.delete(PhotoMod.currentSiteKey, dir);
+    delete PhotoMod.photos[dir];
+    PhotoMod.renderCard(dir);
+    PhotoMod.updateCountBadge();
+    App.toast(`Foto ${PhotoMod.DIR_NAMES[dir]} eliminada`);
+    PhotoDB.countAll().then(n=>{ const el=document.getElementById('stat-photos'); if(el) el.textContent=n; });
+  },
+
+  openLightbox(dir) {
+    const rec = PhotoMod.photos[dir];
+    if(!rec) return;
+    document.getElementById('lightbox-img').src = rec.dataUrl;
+    document.getElementById('lightbox-dir').textContent = `${PhotoMod.DIR_NAMES[dir]} (${PhotoMod.DIR_DEG[dir]}) · ${PhotoMod.currentSiteName}`;
+    document.getElementById('photo-lightbox').classList.add('open');
+  },
+  closeLightbox() {
+    document.getElementById('photo-lightbox').classList.remove('open');
+    document.getElementById('lightbox-img').src = '';
+  },
+
+  // ---- ZIP EXPORT ----
+  async exportZip() {
+    if(!PhotoMod.currentSiteKey) { App.toast('Selecciona un sitio primero','error'); return; }
+    const photos = await PhotoDB.getBySite(PhotoMod.currentSiteKey);
+    if(!photos.length) { App.toast('No hay fotografías para exportar','error'); return; }
+
+    App.toast('Generando ZIP...');
+    try {
+      // Build ZIP using pure-JS (no external lib needed — we implement minimal ZIP)
+      const files = [];
+
+      // Add a README.txt
+      const siteName = PhotoMod.currentSiteName;
+      const now = new Date().toLocaleString('es-MX');
+      let readme = `SiPlaFor - Fotografías de Inventario Forestal\n`;
+      readme += `═══════════════════════════════════════════\n`;
+      readme += `Sitio: ${siteName}\n`;
+      readme += `Exportado: ${now}\n\n`;
+      readme += `Fotografías incluidas:\n`;
+      photos.forEach(p => {
+        const d = new Date(p.ts);
+        readme += `  - ${p.filename}\n`;
+        readme += `    Dirección: ${PhotoMod.DIR_NAMES[p.dir]} (${PhotoMod.DIR_DEG[p.dir]})\n`;
+        readme += `    Fecha: ${d.toLocaleDateString('es-MX')} ${d.toLocaleTimeString('es-MX')}\n`;
+        if(p.lat) readme += `    GPS: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}\n`;
+        readme += `    Tamaño: ${p.sizeKB} KB\n\n`;
+      });
+      files.push({ name: 'README.txt', data: PhotoMod.strToBytes(readme) });
+
+      // Add each photo
+      photos.forEach(p => {
+        const b64 = p.dataUrl.split(',')[1];
+        files.push({ name: p.filename, data: PhotoMod.b64ToBytes(b64) });
+      });
+
+      const zipBytes = PhotoMod.buildZip(files);
+      const safeName = siteName.replace(/[^a-zA-Z0-9_\-]/g,'_');
+      const fname = `SiPlaFor_${safeName}_fotos.zip`;
+      PhotoMod.downloadBytes(zipBytes, fname, 'application/zip');
+      App.toast(`✓ ZIP exportado: ${photos.length} fotos`, 'success');
+    } catch(err) {
+      console.error(err);
+      App.toast('Error al generar ZIP: '+err.message, 'error');
+    }
+  },
+
+  // Export ALL photos from all sites as one big ZIP
+  async exportAllZip() {
+    const all = await PhotoDB.getAll();
+    if(!all.length) { App.toast('No hay fotografías guardadas','error'); return; }
+    App.toast(`Generando ZIP con ${all.length} fotos...`);
+    try {
+      const files = [];
+      // Group by site
+      const bySite = {};
+      all.forEach(p => {
+        if(!bySite[p.siteKey]) bySite[p.siteKey] = [];
+        bySite[p.siteKey].push(p);
+      });
+
+      let readme = `SiPlaFor - Exportación completa de fotografías\n`;
+      readme += `Fecha: ${new Date().toLocaleString('es-MX')}\n`;
+      readme += `Total de sitios: ${Object.keys(bySite).length} | Total de fotos: ${all.length}\n\n`;
+
+      Object.entries(bySite).forEach(([key, photos]) => {
+        const sName = photos[0].siteName || key;
+        readme += `\n${sName} (${photos.length} fotos):\n`;
+        photos.forEach(p => {
+          const safeSite = sName.replace(/[^a-zA-Z0-9_\-]/g,'_');
+          const fname = `${safeSite}/${p.filename}`;
+          const b64 = p.dataUrl.split(',')[1];
+          files.push({ name: fname, data: PhotoMod.b64ToBytes(b64) });
+          readme += `  ${fname}\n`;
+        });
+      });
+
+      files.unshift({ name:'README.txt', data: PhotoMod.strToBytes(readme) });
+      const zipBytes = PhotoMod.buildZip(files);
+      PhotoMod.downloadBytes(zipBytes, 'SiPlaFor_todas_las_fotos.zip', 'application/zip');
+      App.toast(`✓ ZIP completo: ${all.length} fotos de ${Object.keys(bySite).length} sitios`, 'success');
+    } catch(err) {
+      App.toast('Error: '+err.message,'error');
+    }
+  },
+
+  // ---- ZIP builder (pure JS, no dependencies) ----
+  buildZip(files) {
+    const crc32Table = PhotoMod.makeCRC32Table();
+    const localHeaders = [];
+    const centralDir = [];
+    let offset = 0;
+
+    files.forEach(file => {
+      const nameBytes = PhotoMod.strToBytes(file.name);
+      const data = file.data;
+      const crc = PhotoMod.crc32(crc32Table, data);
+      const size = data.length;
+      const now = new Date();
+      const dosDate = ((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+      const dosTime = (now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1);
+
+      // Local file header
+      const lh = new Uint8Array(30 + nameBytes.length + size);
+      const lhv = new DataView(lh.buffer);
+      lhv.setUint32(0, 0x504B0304, true); // sig
+      lhv.setUint16(4, 20, true);          // version
+      lhv.setUint16(6, 0, true);           // flags
+      lhv.setUint16(8, 0, true);           // compression (stored)
+      lhv.setUint16(10, dosTime, true);
+      lhv.setUint16(12, dosDate, true);
+      lhv.setUint32(14, crc, true);
+      lhv.setUint32(18, size, true);
+      lhv.setUint32(22, size, true);
+      lhv.setUint16(26, nameBytes.length, true);
+      lhv.setUint16(28, 0, true);
+      lh.set(nameBytes, 30);
+      lh.set(data, 30 + nameBytes.length);
+      localHeaders.push(lh);
+
+      // Central directory entry
+      const cd = new Uint8Array(46 + nameBytes.length);
+      const cdv = new DataView(cd.buffer);
+      cdv.setUint32(0, 0x504B0102, true);
+      cdv.setUint16(4, 20, true);
+      cdv.setUint16(6, 20, true);
+      cdv.setUint16(8, 0, true);
+      cdv.setUint16(10, 0, true);
+      cdv.setUint16(12, dosTime, true);
+      cdv.setUint16(14, dosDate, true);
+      cdv.setUint32(16, crc, true);
+      cdv.setUint32(20, size, true);
+      cdv.setUint32(24, size, true);
+      cdv.setUint16(28, nameBytes.length, true);
+      cdv.setUint16(30, 0, true);
+      cdv.setUint16(32, 0, true);
+      cdv.setUint16(34, 0, true);
+      cdv.setUint16(36, 0, true);
+      cdv.setUint32(38, 0, true);
+      cdv.setUint32(42, offset, true);
+      cd.set(nameBytes, 46);
+      centralDir.push(cd);
+      offset += lh.length;
+    });
+
+    const cdSize = centralDir.reduce((a,c)=>a+c.length, 0);
+    const eocd = new Uint8Array(22);
+    const eocdv = new DataView(eocd.buffer);
+    eocdv.setUint32(0, 0x504B0506, true);
+    eocdv.setUint16(4, 0, true);
+    eocdv.setUint16(6, 0, true);
+    eocdv.setUint16(8, files.length, true);
+    eocdv.setUint16(10, files.length, true);
+    eocdv.setUint32(12, cdSize, true);
+    eocdv.setUint32(16, offset, true);
+    eocdv.setUint16(20, 0, true);
+
+    // Concatenate all parts
+    const total = offset + cdSize + 22;
+    const zip = new Uint8Array(total);
+    let pos = 0;
+    localHeaders.forEach(lh => { zip.set(lh, pos); pos += lh.length; });
+    centralDir.forEach(cd => { zip.set(cd, pos); pos += cd.length; });
+    zip.set(eocd, pos);
+    return zip;
+  },
+
+  makeCRC32Table() {
+    const t = new Uint32Array(256);
+    for(let i=0;i<256;i++){
+      let c=i;
+      for(let j=0;j<8;j++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1;
+      t[i]=c;
+    }
+    return t;
+  },
+
+  crc32(table, data) {
+    let crc = 0xFFFFFFFF;
+    for(let i=0;i<data.length;i++) crc = table[(crc^data[i])&0xFF]^(crc>>>8);
+    return (crc^0xFFFFFFFF)>>>0;
+  },
+
+  strToBytes(str) {
+    return new TextEncoder().encode(str);
+  },
+
+  b64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  },
+
+  downloadBytes(bytes, filename, mime) {
+    const blob = new Blob([bytes], {type: mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  }
+};
+
+// ====================================================
+// ====================================================
+const GPS = {
+  watchId: null,
+  lastPos: null,
+  heading: 0,              // device heading (deg)
+  headingAvailable: false,
+  target: null,            // {lat, lng, name}
+  origDist: null,          // original distance when nav started
+  panelOpen: false,
+  compassActive: false,
+
+  // ---- Coordinate conversions ----
+  decToDMS(dec, isLat) {
+    const sign = dec < 0 ? -1 : 1;
+    const abs  = Math.abs(dec);
+    const d    = Math.floor(abs);
+    const mf   = (abs - d) * 60;
+    const m    = Math.floor(mf);
+    const s    = ((mf - m) * 60).toFixed(2);
+    const dir  = isLat ? (sign>0?'N':'S') : (sign>0?'E':'O');
+    return `${d}° ${m}' ${s}" ${dir}`;
+  },
+
+  // Haversine distance (m)
+  haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLng = (lng2-lng1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  },
+
+  // Bearing from pos1 → pos2 (degrees, 0=N clockwise)
+  bearing(lat1, lng1, lat2, lng2) {
+    const φ1 = lat1*Math.PI/180, φ2 = lat2*Math.PI/180;
+    const Δλ = (lng2-lng1)*Math.PI/180;
+    const y = Math.sin(Δλ)*Math.cos(φ2);
+    const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+    return ((Math.atan2(y,x)*180/Math.PI) + 360) % 360;
+  },
+
+  cardinalDir(deg) {
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+    return dirs[Math.round(deg/22.5) % 16];
+  },
+
+  // Format distance nicely
+  fmtDist(m) {
+    if(m >= 1000) return { val:(m/1000).toFixed(2), unit:'km' };
+    return { val:Math.round(m), unit:'m' };
+  },
+
+  // ---- GPS tracking ----
+  startTracking() {
+    if(!navigator.geolocation) { App.toast('GPS no disponible en este dispositivo','error'); return; }
+
+    // Open panel
+    const panel = document.getElementById('gps-panel');
+    panel.classList.add('expanded');
+    GPS.panelOpen = true;
+    document.getElementById('map-gps-float').style.display = 'block';
+
+    // Request device orientation for compass
+    GPS.requestOrientation();
+
+    // Watch position
+    if(GPS.watchId) navigator.geolocation.clearWatch(GPS.watchId);
+    GPS.watchId = navigator.geolocation.watchPosition(
+      GPS.onPosition,
+      GPS.onError,
+      {enableHighAccuracy:true, timeout:20000, maximumAge:2000}
+    );
+    document.getElementById('gps-dot-panel').className = 'dot-live on';
+    document.getElementById('map-gps-dot').style.background = '#ffcc00';
+  },
+
+  stopTracking() {
+    if(GPS.watchId) { navigator.geolocation.clearWatch(GPS.watchId); GPS.watchId=null; }
+    document.getElementById('gps-dot-panel').className = 'dot-live';
+    document.getElementById('map-gps-dot').style.background = '#aaa';
+  },
+
+  onPosition(pos) {
+    const {latitude:lat, longitude:lng, altitude, accuracy, altitudeAccuracy, heading:posHeading} = pos.coords;
+    GPS.lastPos = {lat, lng, altitude, accuracy};
+
+    // Use position heading if available and device orientation not
+    if(posHeading !== null && !GPS.headingAvailable) {
+      GPS.heading = posHeading;
+      GPS.updateCompassNeedle();
+    }
+
+    // Update UTM
+    const utm = App.latLngToUTM(lat, lng);
+
+    // ---- Update GPS panel fields ----
+    const set = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+
+    set('gps-lat',  lat.toFixed(7));
+    set('gps-lng',  lng.toFixed(7));
+    set('gps-lat-gms', GPS.decToDMS(lat, true));
+    set('gps-lng-gms', GPS.decToDMS(lng, false));
+    set('gps-utmx', Math.round(utm.x).toLocaleString('es-MX'));
+    set('gps-utmy', Math.round(utm.y).toLocaleString('es-MX'));
+    set('gps-alt',  altitude ? Math.round(altitude)+' m' : '-- m');
+    set('gps-acc',  Math.round(accuracy)+' m');
+
+    // Mini coords in toggle bar
+    set('gps-coords-mini', `${lat.toFixed(5)}, ${lng.toFixed(5)} · ±${Math.round(accuracy)}m`);
+    document.getElementById('map-gps-acc').textContent = `±${Math.round(accuracy)} m`;
+    document.getElementById('map-gps-dot').style.background = accuracy<10?'#00ff41':accuracy<30?'#ffcc00':'#ff4141';
+
+    // Accuracy bar (0-50m range)
+    const pct = Math.min(100, (accuracy/50)*100);
+    const bar = document.getElementById('gps-acc-bar');
+    if(bar){ bar.style.width=pct+'%'; bar.style.background=accuracy<10?'#4ade80':accuracy<30?'#ffcc00':'#ff4141'; }
+    // Accuracy card color
+    const accCard = document.getElementById('gps-acc-card');
+    if(accCard){ accCard.className='coord-card'+(accuracy<10?' ':accuracy<30?' warn':' danger'); }
+
+    // ---- Update map user marker ----
+    if(App.map) {
+      if(App.userMarker) App.map.removeLayer(App.userMarker);
+      // Accuracy circle
+      if(App.accCircle) App.map.removeLayer(App.accCircle);
+      App.accCircle = L.circle([lat,lng],{radius:accuracy, color:'#00ff41', fillColor:'#00ff41', fillOpacity:.08, weight:1}).addTo(App.map);
+      App.userMarker = L.circleMarker([lat,lng],{
+        radius:10, fillColor:'#00ff41', color:'#003300', weight:2.5, fillOpacity:1,
+        className:'user-location-dot'
+      }).bindTooltip(`<b>Tú</b><br>±${Math.round(accuracy)}m`, {permanent:false}).addTo(App.map);
+    }
+
+    // ---- Update nearby sites ----
+    GPS.updateNearbySites();
+
+    // ---- Update navigation if active ----
+    if(GPS.target) GPS.updateNavigation();
+  },
+
+  onError(err) {
+    document.getElementById('gps-dot-panel').className = 'dot-live err';
+    document.getElementById('map-gps-dot').style.background = '#ff4141';
+    document.getElementById('gps-coords-mini').textContent = 'Error GPS: '+err.message;
+    App.toast('GPS: '+err.message,'error');
+  },
+
+  // ---- Device orientation (compass) ----
+  requestOrientation() {
+    // iOS 13+ requires permission
+    if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().then(state => {
+        if(state === 'granted') window.addEventListener('deviceorientationabsolute', GPS.onOrientation, true);
+      }).catch(()=>{ window.addEventListener('deviceorientation', GPS.onOrientation, true); });
+    } else {
+      window.addEventListener('deviceorientationabsolute', GPS.onOrientation, true);
+      window.addEventListener('deviceorientation', GPS.onOrientation, true);
+    }
+  },
+
+  onOrientation(e) {
+    let heading = null;
+    if(e.webkitCompassHeading !== undefined) {
+      heading = e.webkitCompassHeading; // iOS
+    } else if(e.absolute && e.alpha !== null) {
+      heading = (360 - e.alpha) % 360;  // Android absolute
+    } else if(e.alpha !== null) {
+      heading = (360 - e.alpha) % 360;  // fallback
+    }
+    if(heading !== null) {
+      GPS.heading = heading;
+      GPS.headingAvailable = true;
+      GPS.updateCompassNeedle();
+      if(GPS.target) GPS.updateNavigation();
+    }
+  },
+
+  updateCompassNeedle() {
+    const needle = document.getElementById('compass-needle');
+    if(needle) needle.style.transform = `translateX(-50%) translateY(-100%) rotate(${GPS.heading}deg)`;
+  },
+
+  // ---- Nearby sites ----
+  updateNearbySites() {
+    if(!GPS.lastPos) return;
+    const {lat, lng} = GPS.lastPos;
+    const RADIUS = 1000; // 1000 m
+
+    // Collect all sites (KML + recorded)
+    const allSites = [];
+    App.kmlSites.forEach(s => allSites.push({lat:s.lat, lng:s.lng, name:s.name, type:'kml', data:s}));
+    App.sites.forEach(s => {
+      if(!s.f01_utmx||!s.f01_utmy) return;
+      const [slat,slng] = App.utmToLatLng(parseFloat(s.f01_utmx), parseFloat(s.f01_utmy));
+      allSites.push({lat:slat, lng:slng, name:`Sitio ${s.f01_sitio}`, type:'recorded', data:s});
+    });
+
+    // Filter by radius + compute distances
+    const nearby = allSites.map(s => ({
+      ...s,
+      dist: GPS.haversine(lat,lng, s.lat, s.lng),
+      bearing: GPS.bearing(lat,lng, s.lat, s.lng)
+    })).filter(s => s.dist <= RADIUS).sort((a,b) => a.dist-b.dist);
+
+    // Update badge
+    const badge = document.getElementById('nearby-badge');
+    document.getElementById('nearby-count').textContent = nearby.length;
+    badge.style.display = nearby.length>0 ? 'block' : 'none';
+
+    // Update list
+    const list = document.getElementById('nearby-sites-list');
+    if(!list) return;
+    if(!nearby.length) {
+      list.innerHTML = `<div style="text-align:center;color:rgba(0,255,65,.4);font-size:11px;padding:10px;font-family:'JetBrains Mono',monospace;">Sin sitios en radio de 1,000 m</div>`;
+      return;
+    }
+    list.innerHTML = nearby.map((s,i) => {
+      const {val,unit} = GPS.fmtDist(s.dist);
+      const isNav = GPS.target && GPS.target.name===s.name;
+      return `<div class="nearby-item ${s.dist<50?'in-range':''} ${isNav?'navigating':''}" onclick="GPS.navigateTo({lat:${s.lat},lng:${s.lng},name:'${s.name.replace(/'/g,"\\'")}',kml:${s.type==='kml'},data:null})">
+        <span class="ni-icon">${s.dist<50?'📍':s.type==='kml'?'🔵':'🟢'}</span>
+        <span class="ni-name">${s.name}</span>
+        <span class="ni-dist">${val} ${unit}</span>
+        <span class="ni-bearing">${Math.round(s.bearing)}° ${GPS.cardinalDir(s.bearing)}</span>
+        <button class="btn-goto ${isNav?'active':''}" onclick="event.stopPropagation();GPS.navigateTo({lat:${s.lat},lng:${s.lng},name:'${s.name.replace(/'/g,"\\'")}'})">${isNav?'✓':'Go'}</button>
+      </div>`;
+    }).join('');
+  },
+
+  // ---- Navigation / compass ----
+  navigateTo(target) {
+    GPS.target = target;
+    GPS.origDist = null;
+    document.getElementById('compass-panel').classList.add('active');
+    document.getElementById('compass-target-name').textContent = target.name;
+    // Draw line on map
+    if(App.navLine) App.map.removeLayer(App.navLine);
+    if(GPS.lastPos && App.map) {
+      App.navLine = L.polyline([[GPS.lastPos.lat,GPS.lastPos.lng],[target.lat,target.lng]],{
+        color:'#ffcc00', weight:2.5, dashArray:'8 6', opacity:.8
+      }).addTo(App.map);
+    }
+    // Open panel
+    document.getElementById('gps-panel').classList.add('expanded');
+    GPS.panelOpen = true;
+    // Start GPS if not running
+    if(!GPS.watchId) GPS.startTracking();
+    GPS.updateNavigation();
+    App.toast(`Navegando a ${target.name}`,'success');
+  },
+
+  stopNavigation() {
+    GPS.target = null;
+    GPS.origDist = null;
+    document.getElementById('compass-panel').classList.remove('active');
+    if(App.navLine) { App.map.removeLayer(App.navLine); App.navLine=null; }
+    GPS.updateNearbySites();
+  },
+
+  updateNavigation() {
+    if(!GPS.target || !GPS.lastPos) return;
+    const {lat,lng} = GPS.lastPos;
+    const dist = GPS.haversine(lat,lng, GPS.target.lat, GPS.target.lng);
+    const bear = GPS.bearing(lat,lng, GPS.target.lat, GPS.target.lng);
+
+    // Set original distance on first update
+    if(!GPS.origDist) {
+      GPS.origDist = dist;
+      document.getElementById('nav-orig-dist').textContent = GPS.fmtDist(dist).val+' '+GPS.fmtDist(dist).unit;
+    }
+
+    // Distance display
+    const {val,unit} = GPS.fmtDist(dist);
+    document.getElementById('nav-dist').textContent = val;
+    document.getElementById('nav-dist-unit').textContent = unit;
+
+    // Bearing
+    document.getElementById('nav-bearing').textContent = Math.round(bear)+'°';
+    document.getElementById('nav-cardinal').textContent = GPS.cardinalDir(bear);
+
+    // Relative bearing (bearing - device heading)
+    const rel = ((bear - GPS.heading) + 360) % 360;
+    document.getElementById('nav-relative').textContent = Math.round(rel)+'° '+GPS.cardinalDir(rel);
+
+    // Rotate target arrow (points toward target, compensated for device heading)
+    const arrowRot = bear; // arrow in absolute north reference
+    document.getElementById('target-arrow').style.transform =
+      `translateX(-50%) translateY(-100%) rotate(${arrowRot}deg)`;
+
+    // Progress bar
+    const pct = Math.max(0, Math.min(100, (1-(dist/GPS.origDist))*100));
+    document.getElementById('dist-progress-fill').style.width = pct+'%';
+
+    // Arrival message
+    const arrived = document.getElementById('nav-arrived');
+    if(dist < 10) {
+      arrived.textContent = '✅ ¡Llegaste al sitio!';
+      arrived.style.color = '#00ff41';
+    } else if(dist < 30) {
+      arrived.textContent = `⚠️ A ${Math.round(dist)} m del sitio`;
+      arrived.style.color = '#ffcc00';
+    } else {
+      arrived.textContent = `Navegando... ${Math.round(pct)}% completado`;
+      arrived.style.color = 'rgba(0,255,65,.5)';
+    }
+
+    // Update nav line on map
+    if(App.navLine && App.map) {
+      App.navLine.setLatLngs([[lat,lng],[GPS.target.lat,GPS.target.lng]]);
+    }
+
+    // Update nearby list highlight
+    GPS.updateNearbySites();
+  },
+
+  // ---- UI helpers ----
+  togglePanel() {
+    GPS.panelOpen = !GPS.panelOpen;
+    document.getElementById('gps-panel').classList.toggle('expanded', GPS.panelOpen);
+    if(GPS.panelOpen && !GPS.watchId) GPS.startTracking();
+  },
+
+  centerMap() {
+    if(GPS.lastPos && App.map) {
+      App.map.setView([GPS.lastPos.lat, GPS.lastPos.lng], 16);
+    } else {
+      GPS.startTracking();
+    }
+  },
+
+  captureToForm() {
+    if(!GPS.lastPos) { App.toast('Activa el GPS primero','error'); return; }
+    const {lat,lng,altitude} = GPS.lastPos;
+    const utm = App.latLngToUTM(lat,lng);
+    const x = document.getElementById('f01_utmx');
+    const y = document.getElementById('f01_utmy');
+    const a = document.getElementById('f01_asnm');
+    if(x) x.value = Math.round(utm.x);
+    if(y) y.value = Math.round(utm.y);
+    if(a && altitude) a.value = Math.round(altitude);
+    App.toast('Coordenadas copiadas al formulario ✓','success');
+    if(App.currentView !== 'form') App.showView('form');
+  }
+};
+
+// Boot
+setTimeout(()=>{
+  document.getElementById('splash').style.opacity='0';
+  setTimeout(()=>{
+    document.getElementById('splash').style.display='none';
+    document.getElementById('app').classList.remove('app-hidden');
+    document.getElementById('dashboard').classList.remove('app-hidden');
+    App.init();
+  },600);
+},1600);
+</script>
+</body>
+</html>
