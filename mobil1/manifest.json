@@ -2,7 +2,7 @@
   "name": "SiPlaFor · Inventario Forestal",
   "short_name": "SiPlaFor",
   "description": "Sistema de Inventario Forestal para Bosque Templado - Norte de México (Durango/Sinaloa)",
-  "start_url": "./app.html",
+  "start_url": "./app8.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#1a3a1a",
