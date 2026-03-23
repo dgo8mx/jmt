@@ -4314,5 +4314,16 @@ setTimeout(()=>{
   },600);
 },1600);
 </script>
+  
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW activo ✅', reg.scope))
+        .catch(err => console.error('SW falló ❌', err));
+    });
+  }
+</script>
+  
 </body>
 </html>
